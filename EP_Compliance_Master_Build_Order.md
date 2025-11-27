@@ -5259,7 +5259,7 @@ async function validateAPIKey(key: string): Promise<boolean> {
 **Request Formatting Code:**
 ```typescript
 interface OpenAIRequest {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   messages: Array<{
     role: 'system' | 'user';
     content: string;
@@ -5273,7 +5273,7 @@ interface OpenAIRequest {
 }
 
 interface RequestConfig {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   temperature: number;
   maxTokens: number;
   systemMessage: string;
@@ -6299,10 +6299,10 @@ async function callOpenAIWithFallback(
       // Fallback to GPT-4.1 Mini
       const fallbackRequest = {
         ...request,
-        model: 'gpt-4.1-mini' as const
+        model: 'gpt-4o-mini' as const
       };
       
-      await logFallbackUsage(request.model, 'gpt-4.1-mini', error);
+      await logFallbackUsage(request.model, 'gpt-4o-mini', error);
       return await callOpenAI(fallbackRequest);
     }
     throw error;
@@ -6605,11 +6605,11 @@ interface ModelPricing {
 }
 
 const PRICING: Record<string, ModelPricing> = {
-  'gpt-4.1': {
+  'gpt-4o': {
     inputPricePer1K: 0.03,
     outputPricePer1K: 0.06
   },
-  'gpt-4.1-mini': {
+  'gpt-4o-mini': {
     inputPricePer1K: 0.001,
     outputPricePer1K: 0.002
   }
@@ -6859,7 +6859,7 @@ async function handleJobError(
   // Log error
   await logExtractionError(jobInput.documentId, error, {
     jobId,
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     requestTokens: 0
   });
   
@@ -7026,7 +7026,7 @@ async function performHealthCheck(): Promise<HealthCheckResult> {
 **Request/Response Interfaces:**
 ```typescript
 interface OpenAIRequest {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   messages: Array<{
     role: 'system' | 'user';
     content: string;

@@ -2322,7 +2322,7 @@ describe('API Key Management', () => {
     const manager = new APIKeyManager({ primary: 'valid-key-123' });
     const result = await manager.makeAPICall({
       endpoint: '/v1/chat/completions',
-      data: { model: 'gpt-4.1', messages: [] }
+      data: { model: 'gpt-4o', messages: [] }
     });
     
     expect(result.success).toBe(true);
@@ -2342,7 +2342,7 @@ it('should handle invalid API key gracefully', async () => {
   const manager = new APIKeyManager({ primary: 'invalid-key' });
   const result = await manager.makeAPICall({
     endpoint: '/v1/chat/completions',
-    data: { model: 'gpt-4.1', messages: [] }
+    data: { model: 'gpt-4o', messages: [] }
   });
   
   expect(result.success).toBe(false);
@@ -2369,7 +2369,7 @@ it('should rotate to new key successfully', async () => {
   // Verify new key works
   const result = await manager.makeAPICall({
     endpoint: '/v1/chat/completions',
-    data: { model: 'gpt-4.1', messages: [] }
+    data: { model: 'gpt-4o', messages: [] }
   });
   
   expect(result.success).toBe(true);
@@ -2394,7 +2394,7 @@ it('should fallback to secondary key on primary failure', async () => {
   
   const result = await manager.makeAPICall({
     endpoint: '/v1/chat/completions',
-    data: { model: 'gpt-4.1', messages: [] }
+    data: { model: 'gpt-4o', messages: [] }
   });
   
   expect(manager.getCurrentKey()).toBe('valid-fallback-key-123');
@@ -2443,7 +2443,7 @@ describe('API Key Error Handling', () => {
     
     const result = await manager.makeAPICall({
       endpoint: '/v1/chat/completions',
-      data: { model: 'gpt-4.1', messages: [] }
+      data: { model: 'gpt-4o', messages: [] }
     });
     
     expect(result.error.code).toBe('rate_limit_exceeded');
@@ -2456,7 +2456,7 @@ describe('API Key Error Handling', () => {
     
     const result = await manager.makeAPICall({
       endpoint: '/v1/chat/completions',
-      data: { model: 'gpt-4.1', messages: [] }
+      data: { model: 'gpt-4o', messages: [] }
     });
     
     expect(result.error.code).toBe('insufficient_quota');
@@ -2484,7 +2484,7 @@ describe('AI Integration - Request Formatting', () => {
     const formatted = await formatAIRequest({
       documentText: 'Sample permit text...',
       rules: ['rule1', 'rule2'],
-      model: 'gpt-4.1'
+      model: 'gpt-4o'
     });
     
     expect(formatted.messages).toBeDefined();
@@ -2507,7 +2507,7 @@ it('should respect token limits', async () => {
   const formatted = await formatAIRequest({
     documentText: largeDocument,
     rules: [],
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     maxTokens: 100000
   });
   
@@ -2543,7 +2543,7 @@ it('should substitute template variables correctly', async () => {
 ```typescript
 it('should enforce JSON schema in response', async () => {
   const response = await makeAIRequest({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: [],
     responseFormat: { type: 'json_schema', json_schema: obligationSchema }
   });
@@ -2636,7 +2636,7 @@ it('should compress prompts to reduce tokens', async () => {
 ```typescript
 it('should calculate costs accurately', async () => {
   const request = {
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     inputTokens: 1000,
     outputTokens: 500
   };
@@ -2693,19 +2693,19 @@ describe('AI Integration - Error Handling', () => {
 ```typescript
 it('should fallback to cheaper model on failure', async () => {
   const manager = new AIModelManager({
-    primary: 'gpt-4.1',
-    fallback: 'gpt-4.1-mini'
+    primary: 'gpt-4o',
+    fallback: 'gpt-4o-mini'
   });
   
   // Mock primary model failure
-  mockModelFailure('gpt-4.1');
+  mockModelFailure('gpt-4o');
   
   const result = await manager.makeRequest({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: []
   });
   
-  expect(result.model).toBe('gpt-4.1-mini');
+  expect(result.model).toBe('gpt-4o-mini');
   expect(result.success).toBe(true);
 });
 ```
@@ -2739,7 +2739,7 @@ it('should handle rate limits gracefully', async () => {
   mockRateLimitResponse();
   
   const result = await makeAIRequest({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: []
   });
   
@@ -2779,13 +2779,13 @@ describe('AI Integration - Cost Tracking', () => {
 ```typescript
 it('should calculate costs accurately for different models', async () => {
   const gpt41Cost = calculateCost({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     inputTokens: 1000,
     outputTokens: 500
   });
   
   const gpt41MiniCost = calculateCost({
-    model: 'gpt-4.1-mini',
+    model: 'gpt-4o-mini',
     inputTokens: 1000,
     outputTokens: 500
   });
@@ -2804,7 +2804,7 @@ it('should calculate costs accurately for different models', async () => {
 it('should log costs to database', async () => {
   const costRecord = {
     document_id: 'doc-123',
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     input_tokens: 1000,
     output_tokens: 500,
     cost: 0.025,

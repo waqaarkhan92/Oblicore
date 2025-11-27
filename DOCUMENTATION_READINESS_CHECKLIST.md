@@ -26,8 +26,8 @@ Your documentation is ready for development when you can answer **YES** to all i
 **Status:** BLOCKED - System would fail immediately
 
 **The Problem:**
-- 82 references to `gpt-4.1` (model doesn't exist)
-- 22 references to `gpt-4.1-mini` (model doesn't exist)
+- 82 references to `gpt-4o` (model doesn't exist)
+- 22 references to `gpt-4o-mini` (model doesn't exist)
 - Affects 7 core documents
 
 **How to Fix:**
@@ -395,7 +395,7 @@ Give your documentation to a senior developer (or AI) and ask:
 "Implement the permit extraction pipeline using the AI model specified"
 
 **Pass Criteria:**
-- ✅ Developer knows which AI model to use (currently FAILS - gpt-4.1 doesn't exist)
+- ✅ Developer knows which AI model to use (currently FAILS - gpt-4o doesn't exist)
 - ✅ Developer knows what prompt to send
 - ✅ Developer knows how to parse the response
 - ✅ Developer knows timeout and retry logic
@@ -427,7 +427,7 @@ Based on the hostile review, here's your current score:
 
 1. **Fix AI Model References (2 hours)**
    ```bash
-   # Find and replace all gpt-4.1 references
+   # Find and replace all gpt-4o references
    find . -name "*.md" -type f -exec sed -i 's/gpt-4\.1-mini/gpt-4o-mini/g' {} +
    find . -name "*.md" -type f -exec sed -i 's/gpt-4\.1/gpt-4o/g' {} +
 
@@ -568,7 +568,7 @@ grep -r "TODO\|FIXME\|XXX\|PENDING" *.md | wc -l
 ### Your Documentation Status: 35% Ready
 
 **Critical Blockers:**
-1. ❌ Invalid AI model references (gpt-4.1 doesn't exist)
+1. ❌ Invalid AI model references (gpt-4o doesn't exist)
 2. ❌ Misleading CHANGELOG (claims 18 complete, lists only 6)
 3. ⚠️ Unclear pack type migration strategy
 
@@ -634,7 +634,7 @@ grep -r "TODO\|FIXME\|XXX\|PENDING" *.md | wc -l
 ## Summary: Your Action Plan
 
 ### TODAY (4 hours):
-1. Fix all gpt-4.1 references → gpt-4o
+1. Fix all gpt-4o references → gpt-4o
 2. Audit document status and fix CHANGELOG
 3. Document pack type migration strategy
 

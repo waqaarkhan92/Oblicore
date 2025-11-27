@@ -3558,7 +3558,7 @@ def estimate_prompt_cost(
     system_message: str,
     user_message: str,
     estimated_output_tokens: int,
-    model: str = "gpt-4.1"
+    model: str = "gpt-4o"
 ) -> dict:
     """
     Estimate cost for a prompt call.
@@ -3575,11 +3575,11 @@ def estimate_prompt_cost(
     
     # Pricing (GPT-4.1)
     pricing = {
-        "gpt-4.1": {"input": 2.00, "output": 8.00},  # per 1M tokens
-        "gpt-4.1-mini": {"input": 0.40, "output": 1.60}
+        "gpt-4o": {"input": 2.00, "output": 8.00},  # per 1M tokens
+        "gpt-4o-mini": {"input": 0.40, "output": 1.60}
     }
     
-    rates = pricing.get(model, pricing["gpt-4.1"])
+    rates = pricing.get(model, pricing["gpt-4o"])
     cost = (input_tokens * rates["input"] / 1_000_000) + \
            (estimated_output_tokens * rates["output"] / 1_000_000)
     

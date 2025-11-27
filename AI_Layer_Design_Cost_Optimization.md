@@ -16,7 +16,7 @@
 
 ## 1.1 Primary Model: GPT-4.1
 
-**Model Identifier:** `gpt-4.1`
+**Model Identifier:** `gpt-4o`
 
 **Pricing (November 2025):**
 - Input: $2.00 per 1M tokens
@@ -43,7 +43,7 @@
 
 ## 1.2 Secondary Model: GPT-4.1 Mini
 
-**Model Identifier:** `gpt-4.1-mini`
+**Model Identifier:** `gpt-4o-mini`
 
 **Pricing (November 2025):**
 - Input: $0.40 per 1M tokens
@@ -108,7 +108,7 @@
 export const AI_CONFIG = {
   models: {
     primary: {
-      identifier: 'gpt-4.1',
+      identifier: 'gpt-4o',
       maxContextTokens: 1_000_000,
       safeContextLimit: 800_000, // Leave buffer for response
       inputCostPer1M: 2.00,
@@ -118,7 +118,7 @@ export const AI_CONFIG = {
       maxRetries: 2
     },
     secondary: {
-      identifier: 'gpt-4.1-mini',
+      identifier: 'gpt-4o-mini',
       maxContextTokens: 1_000_000,
       safeContextLimit: 800_000,
       inputCostPer1M: 0.40,
@@ -1389,7 +1389,7 @@ const extractionProcessor = async (job: Job<ExtractionJob>) => {
     // Step 7: Log extraction
     await logExtraction({
       documentId,
-      modelIdentifier: 'gpt-4.1',
+      modelIdentifier: 'gpt-4o',
       segmentsProcessed: segments.length,
       obligationsExtracted: validated.obligations.length,
       flaggedForReview: validated.flaggedCount,
@@ -1438,7 +1438,7 @@ ALTER TABLE extraction_logs ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE extraction_logs ADD COLUMN estimated_cost DECIMAL(10, 6) NOT NULL DEFAULT 0;
 ALTER TABLE extraction_logs ADD COLUMN rule_library_hits INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE extraction_logs ADD COLUMN api_calls_made INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE extraction_logs ADD COLUMN model_identifier TEXT NOT NULL DEFAULT 'gpt-4.1';
+ALTER TABLE extraction_logs ADD COLUMN model_identifier TEXT NOT NULL DEFAULT 'gpt-4o';
 
 -- Add indexes for cost analytics
 CREATE INDEX idx_extraction_logs_estimated_cost ON extraction_logs(estimated_cost);
@@ -1453,7 +1453,7 @@ CREATE INDEX idx_extraction_logs_created_month ON extraction_logs(DATE_TRUNC('mo
 | id | UUID | Unique identifier |
 | document_id | UUID | Reference to document |
 | extraction_timestamp | TIMESTAMP | When extraction occurred |
-| model_identifier | TEXT | LLM model used (e.g., 'gpt-4.1') |
+| model_identifier | TEXT | LLM model used (e.g., 'gpt-4o') |
 | rule_library_version | TEXT | Rule library version |
 | segments_processed | INTEGER | Number of segments processed |
 | obligations_extracted | INTEGER | Number of obligations extracted |
@@ -1485,11 +1485,11 @@ interface CostCalculation {
 function calculateCost(
   inputTokens: number,
   outputTokens: number,
-  model: 'gpt-4.1' | 'gpt-4.1-mini' = 'gpt-4.1'
+  model: 'gpt-4o' | 'gpt-4o-mini' = 'gpt-4o'
 ): CostCalculation {
   const pricing = {
-    'gpt-4.1': { input: 2.00, output: 8.00 },
-    'gpt-4.1-mini': { input: 0.40, output: 1.60 }
+    'gpt-4o': { input: 2.00, output: 8.00 },
+    'gpt-4o-mini': { input: 0.40, output: 1.60 }
   };
   
   const rates = pricing[model];
@@ -1504,7 +1504,7 @@ function calculateCost(
 }
 
 // Example usage
-const cost = calculateCost(50000, 5000, 'gpt-4.1');
+const cost = calculateCost(50000, 5000, 'gpt-4o');
 // Returns: { inputCost: 0.10, outputCost: 0.04, totalCost: 0.14 }
 ```
 
@@ -1643,7 +1643,7 @@ interface Message {
 
 async function callOpenAI(prompt: ExtractionPrompt): Promise<OpenAIResponse> {
   const request: OpenAIRequest = {
-    model: prompt.model || 'gpt-4.1',
+    model: prompt.model || 'gpt-4o',
     messages: [
       { role: 'system', content: prompt.systemMessage },
       { role: 'user', content: prompt.userMessage }

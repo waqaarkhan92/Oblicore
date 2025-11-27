@@ -1026,11 +1026,11 @@ types/
   - `/models` - For model information (if needed)
 
 **Model Selection:**
-- **Primary Model:** `gpt-4.1` (see AI Layer Design 1.5a)
+- **Primary Model:** `gpt-4o` (see AI Layer Design 1.5a)
   - Use for: Document extraction, obligation parsing, parameter extraction
   - Context: 1M tokens
   - Cost: $2/$8 per 1M tokens
-- **Secondary Model:** `gpt-4.1-mini` (see AI Layer Design 1.5a)
+- **Secondary Model:** `gpt-4o-mini` (see AI Layer Design 1.5a)
   - Use for: Simple tasks, confidence scoring
   - Context: 1M tokens
   - Cost: $0.40/$1.60 per 1M tokens
