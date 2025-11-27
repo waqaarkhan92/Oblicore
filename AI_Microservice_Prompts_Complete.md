@@ -5,7 +5,10 @@
 - AI Extraction Rules Library (1.6)
 - Product Logic Specification (1.1)
 - Canonical Dictionary (1.4)
-**Purpose: Complete prompt templates for all AI microservice operations across all three modules**
+
+**Purpose:** Complete prompt templates for all AI microservice operations across all three modules
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 # 1. Introduction
 ## Purpose

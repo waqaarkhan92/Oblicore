@@ -1,8 +1,12 @@
 # EP Compliance Color Palette Reference
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Document Version:** 1.0  
-**Last Updated:** 2025-01-01  
+**Last Updated:** 2024-12-27  
 **Status:** Official Brand Colors
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 

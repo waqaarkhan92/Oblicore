@@ -1,7 +1,11 @@
 # Procore → Oblicore UI Design Comparison & Gap Analysis
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Date:** 2025-01-01  
 **Status:** Design Alignment Review
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 

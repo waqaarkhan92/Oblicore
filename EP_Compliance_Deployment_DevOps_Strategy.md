@@ -1,5 +1,7 @@
 # EP Compliance Deployment & DevOps Strategy
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Document Version:** 1.0  
 **Status:** Complete  
 **Created by:** Cursor  
@@ -8,6 +10,8 @@
 - ✅ Database Schema (2.2) - Complete
 
 **Purpose:** Defines the complete deployment and DevOps strategy for the EP Compliance platform, including environment configuration, deployment procedures, CI/CD pipelines, monitoring, and rollback strategies.
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 
@@ -356,7 +360,9 @@ supabase db push --db-url $PRODUCTION_DATABASE_URL
 **Pre-Deployment Testing:**
 - Test RLS policies in staging environment
 - Verify policies enforce correct access control
-- Test with different user roles (OWNER, STAFF, CONSULTANT, VIEWER)
+- Test with different user roles (OWNER, ADMIN, STAFF, CONSULTANT, VIEWER)
+- Test pack generation for all pack types (Regulator, Tender, Board, Insurer, Audit)
+- Test consultant client assignment and multi-client access
 - Test module-specific access restrictions
 
 **Policy Test Script:**
@@ -409,7 +415,7 @@ DROP POLICY IF EXISTS "obligations_select_user_access" ON obligations;
 **Required Buckets:**
 - `documents`: Store permit PDFs and documents (private)
 - `evidence`: Store evidence files (photos, PDFs, CSVs) (private)
-- `audit-packs`: Store generated audit packs (private)
+- `audit-packs`: Store generated packs (all pack types: Audit, Regulator, Tender, Board, Insurer) (private)
 - `aer-documents`: Store AER documents (Module 3) (private)
 
 **Bucket Configuration:**

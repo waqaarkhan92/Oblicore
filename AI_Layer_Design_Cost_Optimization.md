@@ -1,10 +1,14 @@
 # AI Layer Design & Cost Optimization
 ## EP Compliance Platform — Modules 1–3
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Document Version:** 1.0  
 **Status:** Complete  
 **Depends On:** Product Logic Specification (PLS), Canonical Dictionary  
 **Purpose:** Technical specification for AI integration layer, prompt engineering, and cost optimization
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 

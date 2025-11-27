@@ -1,10 +1,14 @@
 # AI Extraction Rules Library
 ## EP Compliance Platform — Modules 1–3
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Document Version:** 1.0  
 **Status:** Complete  
 **Depends On:** Product Logic Specification (PLS), Canonical Dictionary, AI Layer Design & Cost Optimization  
 **Purpose:** Technical specification for the rule library system, pattern matching algorithms, and learning mechanisms
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 

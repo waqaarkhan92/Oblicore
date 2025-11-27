@@ -1,5 +1,7 @@
 # EP Compliance AI Integration Layer
 
+**Oblicore v1.0 — Launch-Ready / Last updated: 2024-12-27**
+
 **Document Version:** 1.0  
 **Status:** Complete  
 **Created by:** Cursor  
@@ -11,6 +13,8 @@
 - ✅ Background Jobs Specification (2.3) - Complete
 
 **Purpose:** Defines the complete AI integration layer implementation for the EP Compliance platform, including OpenAI API integration, cost optimization, confidence scoring, rule library integration, error handling, and background job integration.
+
+> [v1 UPDATE – Version Header – 2024-12-27]
 
 ---
 
