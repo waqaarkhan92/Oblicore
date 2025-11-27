@@ -20,7 +20,7 @@ After conducting an extensive hostile review of all 26 documentation files (tota
 
 ### Key Findings
 
-1. ❌ **SYSTEM-BREAKING:** All AI model references use `gpt-4.1` and `gpt-4.1-mini` which **DO NOT EXIST** in OpenAI's API (82 occurrences across 7 files)
+1. ❌ **SYSTEM-BREAKING:** All AI model references use `gpt-4o` and `gpt-4o-mini` which **DO NOT EXIST** in OpenAI's API (82 occurrences across 7 files)
 2. ❌ **MISLEADING:** CHANGELOG claims "18 documents complete" but only lists 6, with 12 marked "Pending" despite having "Status: Complete" in their headers
 3. ⚠️ **UNCLEAR:** Pack type backward compatibility strategy is undefined - will legacy MODULE_1/2/3 packs work or not?
 
@@ -38,8 +38,8 @@ After conducting an extensive hostile review of all 26 documentation files (tota
 #### The Problem
 
 ALL AI-related documents reference OpenAI models that **DO NOT EXIST**:
-- Referenced: `gpt-4.1` (82 occurrences)
-- Referenced: `gpt-4.1-mini` (22 occurrences)
+- Referenced: `gpt-4o` (82 occurrences)
+- Referenced: `gpt-4o-mini` (22 occurrences)
 - Reality: These models do not exist in OpenAI's API
 
 #### Evidence
@@ -65,7 +65,7 @@ Every single API call to OpenAI would fail with "Model not found" error:
 ```json
 {
   "error": {
-    "message": "The model `gpt-4.1` does not exist",
+    "message": "The model `gpt-4o` does not exist",
     "type": "invalid_request_error",
     "param": "model",
     "code": "model_not_found"
@@ -635,10 +635,10 @@ Despite hostile review mandate, these things ARE done well:
 ```bash
 # 1. AI Model References
 grep -r "gpt-4\.1" *.md | wc -l
-# Result: 60 files containing gpt-4.1
+# Result: 60 files containing gpt-4o
 
 grep -r "gpt-4\.1-mini" *.md | wc -l
-# Result: 22 files containing gpt-4.1-mini
+# Result: 22 files containing gpt-4o-mini
 
 # 2. Status Consistency
 grep -l "Status: Complete" *.md | wc -l

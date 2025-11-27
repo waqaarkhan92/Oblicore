@@ -646,13 +646,13 @@ The system uses a multi-model approach for extraction, with automatic routing ba
 **Primary Model (GPT-4.1):**
 - **Use Cases:** All standard document extraction tasks
 - **Trigger:** Document size < 50 pages, standard document types
-- **Model Identifier:** `gpt-4.1`
+- **Model Identifier:** `gpt-4o`
 - **Timeout:** 30 seconds (standard), 5 minutes (large documents)
 
 **Secondary Model (GPT-4.1-mini):**
 - **Use Cases:** Simple documents, low-priority extractions, retry attempts
 - **Trigger:** Document size < 20 pages, simple document structure, cost optimization needed
-- **Model Identifier:** `gpt-4.1-mini`
+- **Model Identifier:** `gpt-4o-mini`
 - **Timeout:** 30 seconds
 
 **Model Selection Decision Tree:**
@@ -2790,7 +2790,7 @@ Every extraction creates log record:
   "extraction_id": "uuid",
   "document_id": "uuid",
   "extraction_timestamp": "ISO8601",
-  "model_identifier": "gpt-4.1",
+  "model_identifier": "gpt-4o",
   "rule_library_version": "2024.1",
   "segments_processed": 15,
   "obligations_extracted": 73,

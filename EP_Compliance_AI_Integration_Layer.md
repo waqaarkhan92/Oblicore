@@ -266,7 +266,7 @@ async function initializeAPIKeys(): Promise<void> {
 
 ```typescript
 interface OpenAIRequest {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   messages: Array<{
     role: 'system' | 'user';
     content: string;
@@ -280,7 +280,7 @@ interface OpenAIRequest {
 }
 
 interface RequestConfig {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   temperature: number;
   maxTokens: number;
   systemMessage: string;
@@ -312,7 +312,7 @@ async function formatOpenAIRequest(
 
 // Example usage
 const requestConfig: RequestConfig = {
-  model: 'gpt-4.1',
+  model: 'gpt-4o',
   temperature: 0.2,
   maxTokens: 4000,
   systemMessage: 'You are an expert at extracting compliance obligations from environmental permits.',
@@ -448,7 +448,7 @@ async function processBatch(
   // Combine documents into single request
   const combinedContent = documents.map(d => d.content).join('\n\n---\n\n');
   const request = await formatOpenAIRequest({
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     temperature: 0.2,
     maxTokens: 4000,
     systemMessage: 'Extract obligations from multiple permits.',
@@ -1980,10 +1980,10 @@ async function callOpenAIWithFallback(
       // Fallback to GPT-4.1 Mini
       const fallbackRequest = {
         ...request,
-        model: 'gpt-4.1-mini' as const
+        model: 'gpt-4o-mini' as const
       };
       
-      await logFallbackUsage(request.model, 'gpt-4.1-mini', error);
+      await logFallbackUsage(request.model, 'gpt-4o-mini', error);
       return await callOpenAI(fallbackRequest);
     }
     throw error;
@@ -2369,11 +2369,11 @@ interface ModelPricing {
 }
 
 const PRICING: Record<string, ModelPricing> = {
-  'gpt-4.1': {
+  'gpt-4o': {
     inputPricePer1K: 0.03,
     outputPricePer1K: 0.06
   },
-  'gpt-4.1-mini': {
+  'gpt-4o-mini': {
     inputPricePer1K: 0.001,
     outputPricePer1K: 0.002
   }
@@ -2614,7 +2614,7 @@ async function processDocument(jobInput: DocumentProcessingJobInput): Promise<vo
     // Log error
     await logExtractionError(documentId, error as Error, {
       documentId,
-      model: 'gpt-4.1',
+      model: 'gpt-4o',
       requestTokens: 0
     });
     
@@ -2657,7 +2657,7 @@ async function createOpenAIRequest(document: any): Promise<OpenAIRequest> {
   const userMessage = substituteVariables(template.userMessage, variables);
   
   return {
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     messages: [
       { role: 'system', content: systemMessage },
       { role: 'user', content: userMessage }
@@ -2917,7 +2917,7 @@ async function handleJobError(
   // Log error
   await logExtractionError(jobInput.documentId, error, {
     jobId,
-    model: 'gpt-4.1',
+    model: 'gpt-4o',
     requestTokens: 0
   });
   
@@ -3152,7 +3152,7 @@ async function checkCacheHealth(): Promise<boolean> {
 
 ```typescript
 interface OpenAIRequest {
-  model: 'gpt-4.1' | 'gpt-4.1-mini';
+  model: 'gpt-4o' | 'gpt-4o-mini';
   messages: Array<{
     role: 'system' | 'user';
     content: string;

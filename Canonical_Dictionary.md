@@ -4648,9 +4648,49 @@ Values:
 * `BOARD_MULTI_SITE_RISK`: Multi-site risk summary (Growth plan)
 * `INSURER_BROKER`: Risk narrative for insurance (requires Growth Plan, same as Tender Pack — independent pack type)
 
-**Legacy Module-Specific Pack Types (deprecated in v1.0, maintained for backward compatibility only):**
-* `COMBINED`: All active modules combined
-* **Note:** MODULE_1, MODULE_2, MODULE_3 pack types removed in v1.0. Legacy packs with these types should be migrated to AUDIT_PACK. Only `COMBINED` remains for backward compatibility.
+**Legacy Module-Specific Pack Types (deprecated in v1.0):**
+* `COMBINED`: All active modules combined (deprecated - use AUDIT_PACK)
+* `MODULE_1`: Module 1 specific pack (deprecated - use AUDIT_PACK or REGULATOR_INSPECTION)
+* `MODULE_2`: Module 2 specific pack (deprecated - use AUDIT_PACK)
+* `MODULE_3`: Module 3 specific pack (deprecated - use AUDIT_PACK)
+
+**v1.0 Pack Type Migration Strategy:**
+
+**Backward Compatibility Rules:**
+1. **Reading Legacy Packs:**
+   - ✅ System CAN read legacy packs (COMBINED, MODULE_1, MODULE_2, MODULE_3)
+   - Legacy packs display with "(Legacy)" badge in UI
+   - All pack viewing/download features work normally for legacy packs
+   - Legacy packs remain queryable in database
+
+2. **Creating New Packs:**
+   - ❌ System CANNOT create new packs with legacy types
+   - API rejects legacy pack types with 400 error: "Pack type {type} is deprecated. Please use: AUDIT_PACK, REGULATOR_INSPECTION, TENDER_CLIENT_ASSURANCE, BOARD_MULTI_SITE_RISK, or INSURER_BROKER"
+   - Frontend UI only shows v1.0 pack types in dropdown
+   - Validation enforced at application layer (API + frontend)
+
+3. **Migration Behavior:**
+   - NO automatic migration of legacy packs
+   - Legacy packs preserved as-is (historical record, audit trail)
+   - Users can regenerate pack with v1.0 type if needed
+   - Old packs remain immutable (read-only)
+
+4. **Database Constraints:**
+   - CHECK constraint allows legacy types for backward compatibility: `pack_type IN ('REGULATOR_INSPECTION', 'TENDER_CLIENT_ASSURANCE', 'BOARD_MULTI_SITE_RISK', 'INSURER_BROKER', 'AUDIT_PACK', 'COMBINED', 'MODULE_1', 'MODULE_2', 'MODULE_3')`
+   - Application layer validates: new packs must use v1.0 types only
+   - No CASCADE updates to legacy packs
+
+5. **Module Code vs Pack Type Clarification:**
+   - `module_code` (MODULE_1, MODULE_2, MODULE_3) in `modules` table - STILL VALID (refers to active modules)
+   - `pack_type` (MODULE_1, MODULE_2, MODULE_3) in `audit_packs` table - DEPRECATED (refers to legacy pack format)
+   - These are DIFFERENT enums despite same names (historical artifact)
+   - Going forward: modules use module_code, packs use v1.0 pack_type
+
+**Migration Recommendations:**
+- For customers with legacy packs: Leave as-is for historical reference
+- For new pack generation: Always use v1.0 pack types
+- For reporting: Query includes legacy packs but flags them appropriately
+- For API clients: Update to use v1.0 pack types before January 2025
 
 **Implementation Note:**
 - v1.0 pack types are fixed enum values (not dynamic)
@@ -4658,7 +4698,7 @@ Values:
 - Plan-based access: Core Plan can generate `REGULATOR_INSPECTION` and `AUDIT_PACK` only
 - Growth Plan can generate all pack types
 - Consultant Edition can generate all pack types for assigned clients
-- Legacy module-specific pack types remain for backward compatibility
+- Legacy module-specific pack types supported for READ ONLY (not creation)
 
 **Pack Type Access Control:**
 - Core Plan: `REGULATOR_INSPECTION`, `AUDIT_PACK`
