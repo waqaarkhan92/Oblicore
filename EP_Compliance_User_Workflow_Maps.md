@@ -2224,7 +2224,362 @@ This document defines complete step-by-step user journey maps for all workflows 
 
 ---
 
-# 7. GLOSSARY OF UI ACTIONS
+# 7. TEAM COLLABORATION WORKFLOWS
+
+## 7.1 Inviting Team Members
+
+**Workflow:** Owner/Admin invites new team member
+
+**Steps:**
+1. **User (Owner/Admin):** Navigates to Users page (`/users`)
+2. **User:** Clicks "Invite Team Member" button
+3. **System:** Opens invitation modal
+4. **User:** Enters:
+   - Email address
+   - First name, Last name
+   - Role (Owner, Admin, Staff, Viewer, Consultant)
+   - Site assignments (multi-select, optional)
+5. **System:** Validates:
+   - Email format
+   - Email not already invited
+   - At least one role selected
+6. **User:** Clicks "Send Invitation"
+7. **System:**
+   - Creates pending user record
+   - Generates unique invitation token (expires in 7 days)
+   - Sends invitation email to user
+   - Displays success: "Invitation sent to {email}"
+8. **Invited User:** Receives email with invitation link
+9. **Invited User:** Clicks invitation link
+10. **System:** Redirects to signup page with pre-filled email
+11. **Invited User:** Sets password, accepts terms
+12. **System:**
+    - Activates user account
+    - Assigns role and site access
+    - Sends welcome email
+    - Notifies inviter: "User {name} has accepted your invitation"
+
+**Edge Cases:**
+- **Email already exists:** Show error "This email is already registered"
+- **Token expired:** Show message "Invitation expired. Please request a new invitation."
+- **Invitation already accepted:** Redirect to login page
+
+---
+
+## 7.2 Assigning Obligations to Team Members
+
+**Workflow:** Admin assigns obligation to team member
+
+**Steps:**
+1. **User (Admin):** Views obligation detail page
+2. **User:** Clicks "Assign To" dropdown
+3. **System:** Displays list of team members with site access
+4. **User:** Selects team member
+5. **System:**
+   - Updates `obligation.assigned_to` field
+   - Creates notification for assigned user: "You've been assigned: {obligation title}"
+   - Logs assignment in activity feed
+   - Displays success toast: "{Obligation} assigned to {user}"
+6. **Assigned User:** Receives notification (email, in-app, push based on preferences)
+7. **Assigned User:** Clicks notification
+8. **System:** Navigates to obligation detail page
+
+**Bulk Assignment:**
+1. **User (Admin):** Selects multiple obligations (checkboxes)
+2. **User:** Clicks "Bulk Assign" button
+3. **System:** Opens bulk assignment modal
+4. **User:** Selects team member
+5. **System:**
+   - Assigns all selected obligations to user
+   - Creates single notification: "You've been assigned {count} obligations"
+   - Displays success: "{count} obligations assigned to {user}"
+
+---
+
+## 7.3 Commenting on Obligations
+
+**Workflow:** User adds comment/note to obligation
+
+**Steps:**
+1. **User:** Views obligation detail page
+2. **User:** Scrolls to "Comments" section
+3. **User:** Clicks in comment text area
+4. **User:** Types comment (supports markdown, @mentions)
+5. **User:** Optionally @mentions team member (e.g., "@John Smith")
+6. **User:** Clicks "Post Comment" button
+7. **System:**
+   - Creates comment record
+   - Parses @mentions
+   - Sends notification to mentioned users: "{User} mentioned you in {obligation}"
+   - Updates comment list in real-time (WebSocket)
+   - Displays comment with user avatar, name, timestamp
+8. **Mentioned User:** Receives notification
+9. **Mentioned User:** Clicks notification
+10. **System:** Navigates to obligation detail, scrolls to comment
+
+**Comment Features:**
+- **Edit Comment:** User clicks "Edit", updates text, clicks "Save"
+- **Delete Comment:** User clicks "Delete", confirms, system removes comment
+- **Markdown Support:** Bold, italic, lists, links
+- **@Mention Autocomplete:** Type "@" → shows dropdown of team members
+
+---
+
+## 7.4 Team Activity Feed
+
+**Workflow:** User views team activity across sites
+
+**Steps:**
+1. **User:** Navigates to Dashboard
+2. **System:** Displays "Recent Activity" card showing:
+   - Document uploads (who, when, which document)
+   - Evidence uploads (who, when, which obligation)
+   - Obligation status changes (who, what changed, when)
+   - Pack generations (who, pack type, when)
+   - Team member assignments (who assigned what to whom)
+3. **User:** Clicks activity item
+4. **System:** Navigates to relevant detail page
+
+**Activity Filtering:**
+- **By User:** Filter to show only specific team member's actions
+- **By Type:** Filter to show only uploads, assignments, etc.
+- **By Date:** Last 7 days, last 30 days, custom range
+- **By Site:** Show activities for specific site only
+
+---
+
+# 8. BULK OPERATION WORKFLOWS
+
+## 8.1 Bulk Obligation Editing
+
+**Workflow:** Admin updates multiple obligations at once
+
+**Steps:**
+1. **User (Admin):** Views obligations list page
+2. **User:** Selects multiple obligations using checkboxes
+3. **System:** Displays bulk actions toolbar: "{count} selected"
+4. **User:** Clicks "Bulk Edit" button
+5. **System:** Opens bulk edit modal showing:
+   - Field to update (dropdown: Status, Assigned To, Category, etc.)
+   - New value input
+   - Preview of changes
+6. **User:** Selects field to update (e.g., "Assigned To")
+7. **User:** Selects new value (e.g., "John Smith")
+8. **System:** Shows preview: "{count} obligations will be assigned to John Smith"
+9. **User:** Clicks "Apply Changes"
+10. **System:**
+    - Updates all selected obligations
+    - Creates activity log entries
+    - Sends notifications to affected users
+    - Displays success: "{count} obligations updated successfully"
+11. **System:** Refreshes obligations list with updated values
+
+**Supported Bulk Edit Fields:**
+- Assigned To (reassign to different user)
+- Status (mark as N/A, mark as pending review, etc.)
+- Category (change category)
+- Tags (add/remove tags)
+
+**Edge Cases:**
+- **Insufficient permissions:** Show error "You don't have permission to edit some obligations"
+- **Mixed obligation types:** Warn "Selected obligations have different types. Continue?"
+
+---
+
+## 8.2 Bulk Evidence Linking
+
+**Workflow:** User links one evidence item to multiple obligations
+
+**Steps:**
+1. **User:** Views evidence detail page (evidence already uploaded)
+2. **User:** Clicks "Link to Obligations" button
+3. **System:** Opens obligations selector modal
+4. **User:** Searches and selects multiple obligations (checkboxes)
+5. **User:** Clicks "Link to Selected ({count})"
+6. **System:**
+   - Creates `evidence_obligation_links` records for each obligation
+   - Updates obligation evidence counts
+   - Logs linkage in activity feed
+   - Displays success: "Evidence linked to {count} obligations"
+7. **System:** Refreshes evidence detail page showing all linked obligations
+
+**Alternative Flow: From Obligations List**
+1. **User:** Selects multiple obligations using checkboxes
+2. **User:** Clicks "Link Evidence" button
+3. **System:** Opens evidence selector modal
+4. **User:** Selects existing evidence or uploads new evidence
+5. **User:** Clicks "Link"
+6. **System:** Creates links, displays success
+
+---
+
+## 8.3 Bulk Status Updates
+
+**Workflow:** User marks multiple obligations as complete/N/A
+
+**Steps:**
+1. **User:** Selects multiple obligations
+2. **User:** Clicks "Bulk Actions" → "Mark as..."
+3. **System:** Shows options:
+   - Mark as Complete
+   - Mark as N/A
+   - Mark for Review
+4. **User:** Selects "Mark as N/A"
+5. **System:** Opens confirmation modal: "Mark {count} obligations as N/A?"
+6. **User:** Optionally adds reason (text area)
+7. **User:** Clicks "Confirm"
+8. **System:**
+   - Updates obligation statuses
+   - Logs status changes
+   - Sends notifications to assigned users
+   - Displays success: "{count} obligations marked as N/A"
+
+---
+
+## 8.4 Bulk Export
+
+**Workflow:** User exports multiple obligations/evidence to Excel/CSV
+
+**Steps:**
+1. **User:** Selects items to export (or "Select All")
+2. **User:** Clicks "Export" button
+3. **System:** Opens export options modal:
+   - Format: Excel, CSV, PDF
+   - Fields to include: All fields, Selected fields only
+   - Date range filter (optional)
+4. **User:** Configures export options
+5. **User:** Clicks "Export"
+6. **System:**
+   - Generates export file (background job if large)
+   - Downloads file directly (if small) or sends notification when ready
+   - Displays success: "Exported {count} items"
+
+---
+
+# 9. ERROR RECOVERY WORKFLOWS
+
+## 9.1 Upload Failed Recovery
+
+**Workflow:** User recovers from failed document/evidence upload
+
+**Steps:**
+1. **User:** Uploads document
+2. **System:** Upload fails (network error, timeout, server error)
+3. **System:** Displays error message:
+   - "Upload failed: {reason}"
+   - Error icon (red X)
+   - "Retry" button
+   - "Cancel" button
+4. **User:** Clicks "Retry"
+5. **System:** Retries upload with same file (stored in memory)
+6. **If** retry succeeds:
+   - Display success message
+   - Navigate to document detail page
+7. **If** retry fails again:
+   - Offer option to save file reference for later retry
+   - Show "Contact Support" link if repeated failures
+
+**Auto-Retry Logic:**
+- Retry 1: After 2 seconds
+- Retry 2: After 4 seconds (if retry 1 fails)
+- Retry 3: After 8 seconds (if retry 2 fails)
+- After 3 auto-retries: Show manual retry button
+
+---
+
+## 9.2 Session Expiration Recovery
+
+**Workflow:** User session expires during work, auto-recovers data
+
+**Steps:**
+1. **User:** Filling out obligation form (or any form with unsaved changes)
+2. **System:** Detects session expired (token invalid)
+3. **System:**
+   - Saves form data to localStorage
+   - Displays modal: "Your session has expired. Please log in again."
+   - Shows "Log In" button
+4. **User:** Clicks "Log In"
+5. **System:** Redirects to login page
+6. **User:** Logs in
+7. **System:**
+   - Authenticates user
+   - Checks localStorage for saved data
+   - Redirects to original page
+   - Restores form data from localStorage
+   - Displays toast: "Your changes have been restored"
+8. **User:** Reviews restored data, clicks "Save"
+9. **System:** Saves data, clears localStorage
+
+---
+
+## 9.3 Concurrent Edit Conflict Resolution
+
+**Workflow:** Two users edit the same obligation simultaneously
+
+**Steps:**
+1. **User A:** Opens obligation for editing
+2. **User B:** Opens same obligation for editing
+3. **User A:** Makes changes, clicks "Save"
+4. **System:** Saves User A's changes, updates `updated_at` timestamp
+5. **User B:** Makes different changes, clicks "Save"
+6. **System:** Detects conflict:
+   - User B's `last_seen_version` doesn't match current version
+   - Displays conflict resolution modal
+7. **System:** Shows conflict details:
+   - "This obligation was updated by {User A} while you were editing"
+   - Side-by-side comparison of User A's changes vs User B's changes
+   - Options:
+     - "Keep My Changes" (overwrite User A's changes)
+     - "Discard My Changes" (keep User A's changes)
+     - "Merge Changes" (if possible)
+8. **User B:** Selects option
+9. **System:** Applies selection, displays success
+
+---
+
+## 9.4 Network Disconnection Recovery
+
+**Workflow:** User loses network connection during work
+
+**Steps:**
+1. **User:** Working in app (viewing obligations, uploading evidence, etc.)
+2. **System:** Detects network disconnection (WebSocket closed, API calls failing)
+3. **System:**
+   - Displays offline indicator in header: "You're offline"
+   - Disables actions requiring network (upload, save, etc.)
+   - Enables offline-capable actions (view cached data)
+4. **User:** Continues viewing cached data
+5. **System:** Periodically checks for network reconnection (every 5 seconds)
+6. **System:** Network reconnects
+7. **System:**
+   - Displays toast: "You're back online"
+   - Re-enables all actions
+   - Syncs any pending changes (if offline mode supported)
+
+---
+
+## 9.5 Payment Failure Recovery
+
+**Workflow:** User's subscription payment fails, guided recovery
+
+**Steps:**
+1. **System:** Payment fails (card declined, insufficient funds, etc.)
+2. **System:**
+   - Marks account as `payment_failed`
+   - Sends email notification: "Payment failed, please update payment method"
+   - Displays banner in app: "Payment failed. Update payment method to continue."
+3. **User:** Clicks "Update Payment Method" button
+4. **System:** Redirects to billing page
+5. **User:** Updates credit card details
+6. **User:** Clicks "Retry Payment"
+7. **System:**
+   - Processes payment with new card
+   - If successful: Removes banner, sends confirmation email
+   - If fails again: Shows error, offers contact support option
+
+---
+
+# 10. GLOSSARY OF UI ACTIONS
 
 | Action | Description |
 |--------|-------------|

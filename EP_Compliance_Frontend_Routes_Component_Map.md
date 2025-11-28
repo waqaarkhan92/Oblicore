@@ -2137,6 +2137,536 @@ RegulatorQuestionDetailPage
 
 ---
 
+## 3.15 Notification Center Routes
+
+### Route: `/notifications`
+
+**URL Pattern:** `/notifications`
+**File:** `app/(dashboard)/notifications/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+NotificationCenterPage
+├── NotificationCenterHeader
+│   ├── PageTitle ("Notifications")
+│   ├── UnreadCount (badge)
+│   └── HeaderActions
+│       ├── MarkAllReadButton
+│       ├── NotificationSettingsLink
+│       └── ClearAllButton
+├── NotificationFilterBar
+│   ├── TypeFilter (All, Obligation Due, Evidence Uploaded, Pack Ready, etc.)
+│   ├── StatusFilter (All, Unread, Read)
+│   ├── DateRangeFilter (Today, Last 7 Days, Last 30 Days, Custom)
+│   └── ClearFiltersButton
+├── NotificationsList
+│   ├── NotificationGroupHeader (grouped by date: Today, Yesterday, This Week)
+│   └── NotificationItem (repeated)
+│       ├── NotificationIcon (type-specific icon with color)
+│       ├── NotificationContent
+│       │   ├── NotificationTitle (bold if unread)
+│       │   ├── NotificationMessage (truncated)
+│       │   └── NotificationTimestamp (relative: "5 minutes ago")
+│       ├── NotificationActions
+│       │   ├── PrimaryActionButton (e.g., "View Obligation")
+│       │   ├── MarkAsReadButton
+│       │   └── DeleteButton
+│       └── UnreadIndicator (blue dot)
+└── NotificationsPagination
+    └── LoadMoreButton (infinite scroll)
+```
+
+**Data Fetching:**
+- `useNotifications(filters, pagination)` - Fetch notifications list
+- `useNotificationMarkAsRead(notificationId)` - Mark as read
+- `useNotificationMarkAllAsRead()` - Mark all as read
+- `useNotificationDelete(notificationId)` - Delete notification
+
+**User Interactions:**
+- Filter by type, status, date range
+- Click notification → navigate to related entity
+- Mark as read/unread
+- Delete notification
+- Load more (infinite scroll)
+
+**Navigation Flow:**
+- Entry: From notification bell or direct navigation
+- Click notification: Navigate to related entity (obligation, document, pack)
+
+**Mobile Responsiveness:**
+- Full-screen notification list
+- Swipe left to delete
+- Pull-to-refresh
+- Touch-optimized action buttons (min 44x44px)
+
+**Notification Types:**
+
+| Type | Icon | Color | Example |
+|------|------|-------|---------|
+| Obligation Due | Calendar | Orange (#CB7C00) | "[Title] is due in 7 days" |
+| Deadline Approaching | Clock | Yellow (#CB7C00) | "[Title] deadline in 24 hours" |
+| Evidence Uploaded | Upload | Green (#1E7A50) | "[User] uploaded evidence" |
+| Pack Ready | File | Teal (#026A67) | "Pack ready for download" |
+| Exceedance Alert | Alert | Red (#B13434) | "Parameter exceeded limit" |
+| Team Mention | @ | Teal (#026A67) | "[User] mentioned you" |
+| Extraction Complete | Check | Green (#1E7A50) | "X obligations extracted" |
+| Review Required | Eye | Orange (#CB7C00) | "X items require review" |
+| System | Bell | Teal (#026A67) | System announcements |
+
+**Empty States:**
+- No notifications: "No notifications yet"
+- No unread: "You're all caught up!"
+- No results: "No notifications match your filters"
+
+---
+
+## 3.16 User Profile & Settings Routes
+
+### Route: `/profile`
+
+**URL Pattern:** `/profile`
+**File:** `app/(dashboard)/profile/page.tsx`
+**Access:** Authenticated users (own profile)
+
+**Component Structure:**
+```
+UserProfilePage
+├── ProfileHeader
+│   ├── PageTitle ("My Profile")
+│   └── EditModeToggle
+├── ProfileTabs
+│   ├── PersonalInfoTab
+│   ├── AccountSettingsTab
+│   ├── NotificationPreferencesTab
+│   └── SecurityTab
+├── PersonalInfoSection
+│   ├── ProfilePhotoUpload
+│   │   ├── CurrentPhoto (avatar, 120px circle)
+│   │   ├── UploadButton
+│   │   ├── RemovePhotoButton
+│   │   └── PhotoGuidelines ("Max 5MB, JPG/PNG")
+│   ├── PersonalInfoForm
+│   │   ├── FirstNameInput
+│   │   ├── LastNameInput
+│   │   ├── EmailInput (read-only, verified badge)
+│   │   ├── PhoneNumberInput (optional)
+│   │   └── JobTitleInput (optional)
+│   └── SaveButton
+├── AccountSettingsSection
+│   ├── EmailSection
+│   │   ├── CurrentEmail (read-only)
+│   │   ├── VerificationStatus (verified/unverified badge)
+│   │   └── ChangeEmailButton
+│   ├── PasswordSection
+│   │   ├── ChangePasswordButton
+│   │   └── LastPasswordChange ("Changed 30 days ago")
+│   └── LanguageSection
+│       ├── LanguageSelector (English, Spanish, French)
+│       └── TimezoneSelector (auto-detected)
+├── NotificationPreferencesSection
+│   ├── EmailNotificationsToggle (global on/off)
+│   ├── NotificationTypesList
+│   │   └── NotificationTypeItem (repeated)
+│   │       ├── TypeLabel ("Obligation Due")
+│   │       ├── EmailToggle
+│   │       ├── SMSToggle
+│   │       └── PushToggle
+│   └── DigestPreferences
+│       ├── DigestFrequency (Off, Daily, Weekly)
+│       └── DigestTime (time picker)
+└── SecuritySection
+    ├── TwoFactorAuthSection
+    │   ├── Enable2FAButton
+    │   ├── 2FAStatus (enabled/disabled)
+    │   └── BackupCodes (if enabled)
+    ├── ActiveSessionsSection
+    │   ├── SessionsList
+    │   │   └── SessionItem (device, location, last active)
+    │   └── LogoutAllButton
+    └── DeleteAccountSection
+        ├── DeleteAccountButton (danger)
+        └── DeleteAccountWarning
+```
+
+**Data Fetching:**
+- `useCurrentUser()` - Fetch current user profile
+- `useUpdateProfile()` - Update profile mutation
+- `useChangeEmail()` - Change email mutation
+- `useChangePassword()` - Change password mutation
+- `useUpdateNotificationPreferences()` - Update notification preferences
+
+**User Interactions:**
+- Upload profile photo
+- Edit personal information
+- Change email (with verification)
+- Change password
+- Update notification preferences
+- Enable/disable 2FA
+- View active sessions, logout all
+- Delete account (with confirmation)
+
+**Navigation Flow:**
+- Entry: From user menu dropdown or settings link
+- Save changes: Show success toast, stay on page
+
+**Mobile Responsiveness:**
+- Tabs: Horizontal scroll on mobile
+- Form: Stacked layout
+- Photo upload: Camera option on mobile
+
+**Validation:**
+- Email: Valid format, not already in use
+- Password: Min 8 characters, strength indicator
+- Phone: Valid format (optional)
+
+---
+
+### Route: `/settings/notifications`
+
+**URL Pattern:** `/settings/notifications`
+**File:** `app/(dashboard)/settings/notifications/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+NotificationSettingsPage
+├── SettingsHeader
+│   ├── PageTitle ("Notification Settings")
+│   └── SaveButton
+├── GlobalSettingsSection
+│   ├── EmailNotificationsToggle
+│   ├── SMSNotificationsToggle (requires verified phone)
+│   ├── PushNotificationsToggle (mobile/desktop)
+│   └── QuietHoursSection
+│       ├── EnableQuietHoursToggle
+│       ├── StartTimeInput
+│       └── EndTimeInput
+├── NotificationPreferencesTable
+│   ├── TableHeader
+│   │   ├── TypeColumn
+│   │   ├── EmailColumn
+│   │   ├── SMSColumn
+│   │   ├── InAppColumn
+│   │   └── PushColumn
+│   └── PreferenceRow (repeated per notification type)
+│       ├── TypeLabel
+│       ├── EmailCheckbox
+│       ├── SMSCheckbox
+│       ├── InAppCheckbox (always on)
+│       └── PushCheckbox
+└── DigestSection
+    ├── DigestFrequencySelector (Off, Daily, Weekly)
+    ├── DigestTimeInput (if daily)
+    └── DigestDayInput (if weekly)
+```
+
+**Default Notification Preferences:**
+
+| Notification Type | Email | SMS | In-App | Push |
+|-------------------|-------|-----|--------|------|
+| Obligation Due | ✓ | ✗ | ✓ | ✓ |
+| Deadline Approaching | ✓ | ✗ | ✓ | ✓ |
+| Exceedance Alert | ✓ | ✓ | ✓ | ✓ |
+| Evidence Uploaded | ✓ | ✗ | ✓ | ✓ |
+| Pack Ready | ✓ | ✗ | ✓ | ✓ |
+| Team Mention | ✓ | ✗ | ✓ | ✓ |
+| System | ✓ | ✗ | ✓ | ✓ |
+
+---
+
+## 3.17 Global Search Routes
+
+### Route: `/search`
+
+**URL Pattern:** `/search?q={query}`
+**File:** `app/(dashboard)/search/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+GlobalSearchPage
+├── SearchHeader
+│   ├── SearchInput (pre-filled with query, autofocus)
+│   ├── SearchButton
+│   └── ClearButton
+├── SearchFilters
+│   ├── EntityTypeFilter
+│   │   ├── AllOption (default)
+│   │   ├── ObligationsOption
+│   │   ├── DocumentsOption
+│   │   ├── EvidenceOption
+│   │   ├── SitesOption
+│   │   └── PacksOption
+│   ├── SiteFilter (multi-select)
+│   ├── DateRangeFilter
+│   └── ClearFiltersButton
+├── SearchResultsSummary
+│   ├── ResultsCount ("{X} results for '{query}'")
+│   └── SearchTime ("Results in 0.23s")
+├── SearchResultsGrouped
+│   ├── ObligationsResults
+│   │   ├── GroupHeader ("Obligations (X)")
+│   │   ├── ResultsList
+│   │   │   └── ObligationResultCard (repeated)
+│   │   │       ├── ObligationTitle (highlighted query)
+│   │   │       ├── ObligationDescription (snippet with highlight)
+│   │   │       ├── SiteName
+│   │   │       ├── DeadlineDate
+│   │   │       └── StatusBadge
+│   │   └── ViewAllButton ("View all X obligations")
+│   ├── DocumentsResults (similar structure)
+│   ├── EvidenceResults (similar structure)
+│   ├── SitesResults (similar structure)
+│   └── PacksResults (similar structure)
+└── SearchPagination
+    └── LoadMoreButton
+```
+
+**Data Fetching:**
+- `useGlobalSearch(query, filters, pagination)` - Search across all entities
+- Debounced search (300ms)
+- Minimum query length: 3 characters
+
+**Search Behavior:**
+- Full-text search across:
+  - Obligation titles, descriptions
+  - Document titles, extracted text
+  - Evidence titles, descriptions
+  - Site names, addresses
+  - Pack names
+- Fuzzy matching (typo tolerance)
+- Result ranking by relevance
+- Highlight matched terms in results
+
+**User Interactions:**
+- Enter search query
+- Filter by entity type, site, date range
+- Click result → navigate to entity detail
+- View all results of specific type
+- Load more results (pagination)
+
+**Navigation Flow:**
+- Entry: From global search (Cmd/Ctrl+K) or header search
+- Click result: Navigate to entity detail page
+
+**Mobile Responsiveness:**
+- Full-screen search on mobile
+- Filter drawer (bottom sheet)
+- Result cards (full-width)
+- Touch-optimized
+
+**Empty States:**
+- No query: "Enter a search term to get started"
+- No results: "No results found for '{query}'" with suggestions
+- Minimum length not met: "Enter at least 3 characters"
+
+**Keyboard Shortcuts:**
+- Cmd/Ctrl+K: Focus search input
+- Enter: Submit search
+- Escape: Clear search
+- Arrow keys: Navigate results
+
+---
+
+## 3.18 Reports Dashboard Routes
+
+### Route: `/reports`
+
+**URL Pattern:** `/reports`
+**File:** `app/(dashboard)/reports/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+ReportsDashboardPage
+├── ReportsHeader
+│   ├── PageTitle ("Reports")
+│   └── CustomReportButton (if Growth Plan)
+├── ReportTemplates
+│   └── ReportTemplateCard (repeated)
+│       ├── TemplateIcon
+│       ├── TemplateName
+│       ├── TemplateDescription
+│       ├── ConfigureButton
+│       └── GenerateButton
+└── RecentReports
+    ├── SectionTitle ("Recent Reports")
+    └── ReportsList
+        └── ReportRow (repeated)
+            ├── ReportName
+            ├── ReportType
+            ├── GeneratedDate
+            ├── GeneratedBy
+            └── ReportActions
+                ├── DownloadButton
+                ├── ViewButton
+                └── DeleteButton
+```
+
+**Available Report Templates:**
+
+1. **Compliance Summary Report**
+   - Overview of compliance status across all sites
+   - Includes: Site compliance scores, overdue obligations, upcoming deadlines
+   - Format: PDF, Excel
+
+2. **Deadline Report**
+   - All upcoming deadlines with evidence status
+   - Includes: Obligations, deadlines, evidence status, assigned users
+   - Format: PDF, Excel, CSV
+
+3. **Evidence Register**
+   - Complete evidence archive
+   - Includes: All evidence items, linked obligations, upload dates
+   - Format: PDF, Excel
+
+4. **Site Compliance Report**
+   - Detailed compliance report for a single site
+   - Includes: Traffic light status, obligations, evidence, trends
+   - Format: PDF
+
+5. **Exceedance Report** (Module 2)
+   - Parameter exceedances and trends
+   - Includes: Parameter values, limits, exceedance dates, charts
+   - Format: PDF, Excel
+
+6. **Run Hour Report** (Module 3)
+   - Generator run hour tracking
+   - Includes: Run hours, limit tracking, projections
+   - Format: PDF, Excel
+
+---
+
+### Route: `/reports/generate`
+
+**URL Pattern:** `/reports/generate`
+**File:** `app/(dashboard)/reports/generate/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+ReportGenerationPage
+├── GenerationHeader
+│   ├── PageTitle ("Generate Report")
+│   ├── BackButton
+│   └── TemplateSelector
+├── ReportConfigurationForm
+│   ├── ReportNameInput
+│   ├── DateRangeSelector
+│   │   ├── StartDateInput
+│   │   ├── EndDateInput
+│   │   └── PresetButtons (Last 7 days, Last 30 days, This quarter)
+│   ├── SiteSelector (multi-select)
+│   ├── FormatSelector (PDF, Excel, CSV)
+│   ├── IncludeOptionsSection
+│   │   ├── IncludeChartsCheckbox
+│   │   ├── IncludeEvidenceCheckbox
+│   │   ├── IncludeSummaryCheckbox
+│   │   └── IncludeRawDataCheckbox
+│   └── DeliveryOptionsSection (if Growth Plan)
+│       ├── EmailReportCheckbox
+│       ├── EmailRecipientsInput
+│       └── ScheduleRecurringCheckbox
+├── ReportPreview
+│   ├── PreviewStats (estimated pages, size, obligation count)
+│   └── PreviewSections
+└── GenerationActions
+    ├── CancelButton
+    └── GenerateButton
+```
+
+**Data Fetching:**
+- `useReportTemplates()` - Fetch available templates
+- `useGenerateReport()` - Generate report mutation
+- `useReports(filters)` - Fetch recent reports list
+
+**Report Generation Flow:**
+1. Select template or create custom
+2. Configure report parameters (date range, sites, format)
+3. Preview report stats
+4. Generate report (background job)
+5. Notification when ready
+6. Download or view report
+
+---
+
+## 3.19 Help Center Routes
+
+### Route: `/help`
+
+**URL Pattern:** `/help`
+**File:** `app/(dashboard)/help/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+HelpCenterPage
+├── HelpHeader
+│   ├── PageTitle ("Help Center")
+│   └── SearchInput
+├── HelpCategories
+│   └── CategoryCard (repeated)
+│       ├── CategoryIcon
+│       ├── CategoryName
+│       ├── CategoryDescription
+│       ├── ArticleCount
+│       └── ViewCategoryButton
+├── PopularArticles
+│   ├── SectionTitle ("Popular Articles")
+│   └── ArticlesList
+│       └── ArticleItem (repeated)
+│           ├── ArticleTitle
+│           ├── ArticleSnippet
+│           └── ReadButton
+└── ContactSupport
+    ├── SectionTitle ("Need More Help?")
+    ├── ContactOptions
+    │   ├── EmailSupportButton
+    │   ├── LiveChatButton (if available)
+    │   └── ScheduleCallButton (if Growth Plan)
+    └── SupportHours
+```
+
+**Help Categories:**
+
+1. **Getting Started** - Creating sites, uploading permits, understanding obligations
+2. **Document Management** - Uploading documents, extraction, review
+3. **Obligations & Evidence** - Managing obligations, uploading evidence, schedules
+4. **Packs & Reports** - Generating packs, creating reports, sharing
+5. **Modules** - Activating modules, Module 2/3 usage
+6. **Team & Settings** - Inviting team members, permissions, preferences
+
+---
+
+### Route: `/help/articles/[articleId]`
+
+**URL Pattern:** `/help/articles/:articleId`
+**File:** `app/(dashboard)/help/articles/[articleId]/page.tsx`
+**Access:** Authenticated users
+
+**Component Structure:**
+```
+HelpArticlePage
+├── ArticleBreadcrumb (Home > Help > Category > Article)
+├── ArticleHeader
+│   ├── ArticleTitle
+│   ├── ArticleMetadata (last updated, read time)
+│   └── ArticleActions (print, share, feedback)
+├── ArticleContent (markdown with images, videos, code snippets)
+├── RelatedArticles
+└── ArticleFeedback
+    ├── FeedbackPrompt ("Was this article helpful?")
+    └── FeedbackButtons (thumbs up/down)
+```
+
+**Data Fetching:**
+- `useHelpArticle(articleId)` - Fetch article content
+- `useRelatedArticles(articleId)` - Fetch related articles
+- `useSubmitArticleFeedback()` - Submit feedback
+
+---
+
 # 4. Component Hierarchy
 
 ## 4.1 Shared Layout Components
@@ -6913,6 +7443,77 @@ export default function ProtectedPage() {
 - **Total Bundle:** < 1MB (gzipped)
 - **Route Chunks:** < 50KB per route (gzipped)
 
+## B.3 Comprehensive Performance Budget
+
+| Metric | Target | Critical Threshold | Measurement |
+|--------|--------|-------------------|-------------|
+| **Core Web Vitals** | | | |
+| First Contentful Paint (FCP) | < 1.5s | < 2.5s | Lighthouse, WebPageTest |
+| Largest Contentful Paint (LCP) | < 2.5s | < 4.0s | Lighthouse, WebPageTest |
+| Cumulative Layout Shift (CLS) | < 0.1 | < 0.25 | Lighthouse, Chrome DevTools |
+| First Input Delay (FID) | < 100ms | < 300ms | Real User Monitoring (RUM) |
+| Interaction to Next Paint (INP) | < 200ms | < 500ms | RUM, Chrome DevTools |
+| **Load Performance** | | | |
+| Time to Interactive (TTI) | < 3.5s | < 5.0s | Lighthouse |
+| Speed Index | < 3.0s | < 4.5s | Lighthouse, WebPageTest |
+| Total Blocking Time (TBT) | < 300ms | < 600ms | Lighthouse |
+| **Bundle Sizes** | | | |
+| JavaScript (Initial, gzipped) | < 200KB | < 350KB | webpack-bundle-analyzer |
+| JavaScript (Total, gzipped) | < 800KB | < 1.5MB | webpack-bundle-analyzer |
+| CSS (gzipped) | < 50KB | < 100KB | Bundle analysis |
+| Fonts (WOFF2) | < 100KB | < 200KB | Network tab |
+| **Per-Route Budgets** | | | |
+| Route chunk (JS, gzipped) | < 50KB | < 100KB | Code splitting analysis |
+| Route data fetch | < 500ms | < 1s | API monitoring |
+| **Image Optimization** | | | |
+| Image format | WebP + JPEG fallback | - | Build config |
+| Image lazy loading | Below fold | - | Intersection Observer |
+| Max image size | 500KB (compressed) | 1MB | Image optimization |
+| **Network** | | | |
+| API response time (p50) | < 200ms | < 500ms | APM tools |
+| API response time (p95) | < 500ms | < 1s | APM tools |
+| GraphQL query size | < 10KB | < 50KB | Network analysis |
+| WebSocket latency | < 50ms | < 100ms | Custom monitoring |
+| **Caching** | | | |
+| Static assets cache | 1 year | - | Cache-Control headers |
+| API cache hit rate | > 60% | > 40% | CDN analytics |
+| Service worker cache | Enabled | - | PWA audit |
+| **Rendering** | | | |
+| Server-side rendering (SSR) | < 500ms | < 1s | Server monitoring |
+| Hydration time | < 500ms | < 1s | Custom metrics |
+| Component render time | < 16ms (60fps) | < 33ms (30fps) | React DevTools Profiler |
+
+## B.4 Optimization Strategies
+
+**Code Splitting:**
+- Route-based splitting (all routes)
+- Component-based splitting (modals, charts, heavy components)
+- Dynamic imports for non-critical features
+
+**Lazy Loading:**
+- Images: Below fold lazy loading
+- Components: Modal content, tab content, accordion content
+- Data: Infinite scroll, pagination
+
+**Caching Strategy:**
+- Static assets: Immutable cache (1 year)
+- API responses: Stale-while-revalidate
+- User data: TanStack Query with aggressive caching
+- Service worker: Precache critical routes
+
+**Bundle Optimization:**
+- Tree shaking (remove unused code)
+- Minification (Terser)
+- Compression (gzip/brotli)
+- Remove source maps in production
+- Analyze with webpack-bundle-analyzer
+
+**Performance Monitoring:**
+- Real User Monitoring (RUM): Sentry, Datadog
+- Lighthouse CI: Automated performance audits
+- WebPageTest: Periodic performance tests
+- Custom metrics: Core business metrics (time to first obligation view, etc.)
+
 ---
 
 # Appendix C: Accessibility Checklist
@@ -6927,6 +7528,424 @@ export default function ProtectedPage() {
 - ✅ Error messages announced
 - ✅ Skip links implemented
 - ✅ Alt text for all images
+
+## C.2 Screen Reader Announcements
+
+**Live Region Announcements:**
+
+| Event | Announcement | Priority |
+|-------|--------------|----------|
+| Form submission success | "{Entity} saved successfully" | Polite |
+| Form validation error | "Form has {count} errors. Please review." | Assertive |
+| Loading state start | "Loading {entity}..." | Polite |
+| Loading complete | "{Entity} loaded" | Polite |
+| Upload progress | "Uploading file: {percent}% complete" | Polite |
+| Upload complete | "File uploaded successfully" | Polite |
+| Navigation change | "Now viewing {page title}" | Polite |
+| Notification received | "New notification: {title}" | Polite |
+| Search results | "{count} results found for '{query}'" | Polite |
+| Filter applied | "{count} items match your filters" | Polite |
+| Item added to list | "{item} added" | Polite |
+| Item removed from list | "{item} removed" | Polite |
+| Modal opened | "Dialog opened: {title}" | Polite |
+| Modal closed | "Dialog closed" | Polite |
+| Error occurred | "Error: {message}" | Assertive |
+| Warning | "Warning: {message}" | Assertive |
+
+**Implementation:**
+```typescript
+function useLiveAnnouncement() {
+  const announce = (message: string, priority: 'polite' | 'assertive' = 'polite') => {
+    const liveRegion = document.getElementById(`live-region-${priority}`);
+    if (liveRegion) {
+      liveRegion.textContent = message;
+      // Clear after announcement
+      setTimeout(() => {
+        liveRegion.textContent = '';
+      }, 1000);
+    }
+  };
+
+  return announce;
+}
+
+// Usage
+const announce = useLiveAnnouncement();
+announce("Obligation saved successfully", "polite");
+```
+
+**Live Region HTML:**
+```html
+<div
+  id="live-region-polite"
+  aria-live="polite"
+  aria-atomic="true"
+  className="sr-only"
+/>
+<div
+  id="live-region-assertive"
+  aria-live="assertive"
+  aria-atomic="true"
+  className="sr-only"
+/>
+```
+
+## C.3 ARIA Landmark Roles
+
+**Page Structure:**
+```html
+<body>
+  <!-- Header -->
+  <header role="banner" aria-label="Site header">
+    <nav role="navigation" aria-label="Main navigation">
+      <!-- Navigation links -->
+    </nav>
+    <div role="search" aria-label="Global search">
+      <!-- Search input -->
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main role="main" aria-labelledby="page-title">
+    <h1 id="page-title">Page Title</h1>
+
+    <!-- Optional navigation within page -->
+    <nav role="navigation" aria-label="Secondary navigation">
+      <!-- Breadcrumbs or tabs -->
+    </nav>
+
+    <!-- Page content -->
+    <div role="region" aria-label="Main content">
+      <!-- Content -->
+    </div>
+
+    <!-- Complementary content (sidebar) -->
+    <aside role="complementary" aria-label="Related information">
+      <!-- Sidebar content -->
+    </aside>
+  </main>
+
+  <!-- Footer -->
+  <footer role="contentinfo" aria-label="Site footer">
+    <!-- Footer content -->
+  </footer>
+</body>
+```
+
+**Form Landmarks:**
+```html
+<form role="form" aria-label="Obligation creation">
+  <fieldset>
+    <legend>Obligation Details</legend>
+    <!-- Form fields -->
+  </fieldset>
+</form>
+```
+
+**Modal Landmarks:**
+```html
+<div
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-title"
+  aria-describedby="modal-description"
+>
+  <h2 id="modal-title">Modal Title</h2>
+  <p id="modal-description">Modal description</p>
+  <!-- Modal content -->
+</div>
+```
+
+**List Landmarks:**
+```html
+<div role="list" aria-label="Obligations">
+  <div role="listitem" aria-label="Obligation: Monitor discharge parameters">
+    <!-- List item content -->
+  </div>
+</div>
+```
+
+## C.4 Focus Management Patterns
+
+**Modal Focus Management:**
+```typescript
+function Modal({ isOpen, onClose, children }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement>();
+
+  useEffect(() => {
+    if (isOpen) {
+      // Store currently focused element
+      previousActiveElement.current = document.activeElement as HTMLElement;
+
+      // Focus first focusable element in modal
+      const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+
+      // Trap focus within modal
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          trapFocus(e, modalRef.current);
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+
+        // Restore focus to previous element
+        previousActiveElement.current?.focus();
+      };
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={modalRef} role="dialog" aria-modal="true">
+      {children}
+    </div>
+  );
+}
+
+function trapFocus(e: KeyboardEvent, container: HTMLElement | null) {
+  if (!container) return;
+
+  const focusableElements = container.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements[focusableElements.length - 1];
+
+  if (e.shiftKey && document.activeElement === firstElement) {
+    e.preventDefault();
+    lastElement?.focus();
+  } else if (!e.shiftKey && document.activeElement === lastElement) {
+    e.preventDefault();
+    firstElement?.focus();
+  }
+}
+```
+
+**Form Focus Management:**
+```typescript
+function Form({ onSubmit }: FormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    try {
+      await onSubmit();
+
+      // Focus on success message
+      const successMessage = document.getElementById('success-message');
+      successMessage?.focus();
+    } catch (error) {
+      // Focus on first error
+      const firstError = formRef.current?.querySelector<HTMLElement>(
+        '[aria-invalid="true"]'
+      );
+      firstError?.focus();
+    }
+  };
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+**Navigation Focus Management:**
+```typescript
+function useFocusOnNavigate() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // Focus on page heading after navigation
+    const pageHeading = document.querySelector<HTMLElement>('h1');
+    if (pageHeading) {
+      pageHeading.setAttribute('tabindex', '-1');
+      pageHeading.focus();
+      // Remove tabindex after focus
+      setTimeout(() => {
+        pageHeading.removeAttribute('tabindex');
+      }, 100);
+    }
+  }, [pathname]);
+}
+```
+
+**Skip to Content Link:**
+```typescript
+function SkipLink() {
+  return (
+    <a
+      href="#main-content"
+      className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-[#026A67] focus:text-white focus:rounded"
+    >
+      Skip to main content
+    </a>
+  );
+}
+```
+
+---
+
+# Appendix D: Mobile Gesture Patterns
+
+## D.1 Swipe Gesture Library
+
+**Swipe Detection Hook:**
+```typescript
+interface SwipeHookOptions {
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
+  onSwipeUp?: () => void;
+  onSwipeDown?: () => void;
+  threshold?: number; // Minimum swipe distance in pixels
+}
+
+function useSwipe(options: SwipeHookOptions) {
+  const {
+    onSwipeLeft,
+    onSwipeRight,
+    onSwipeUp,
+    onSwipeDown,
+    threshold = 50
+  } = options;
+
+  const touchStart = useRef({ x: 0, y: 0 });
+  const touchEnd = useRef({ x: 0, y: 0 });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEnd.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    };
+  };
+
+  const handleTouchEnd = () => {
+    const deltaX = touchEnd.current.x - touchStart.current.x;
+    const deltaY = touchEnd.current.y - touchStart.current.y;
+
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+
+    if (isHorizontal) {
+      if (deltaX > threshold && onSwipeRight) {
+        onSwipeRight();
+      } else if (deltaX < -threshold && onSwipeLeft) {
+        onSwipeLeft();
+      }
+    } else {
+      if (deltaY > threshold && onSwipeDown) {
+        onSwipeDown();
+      } else if (deltaY < -threshold && onSwipeUp) {
+        onSwipeUp();
+      }
+    }
+  };
+
+  return {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd
+  };
+}
+```
+
+## D.2 Gesture Usage Examples
+
+**Swipe to Delete:**
+```typescript
+function SwipeableNotification({ notification, onDelete }: Props) {
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: onDelete,
+    threshold: 100
+  });
+
+  return (
+    <div {...swipeHandlers} className="relative">
+      {/* Notification content */}
+    </div>
+  );
+}
+```
+
+**Pull to Refresh:**
+```typescript
+function PullToRefreshList({ onRefresh, children }: Props) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const swipeHandlers = useSwipe({
+    onSwipeDown: async () => {
+      if (pullDistance > 80) {
+        setIsRefreshing(true);
+        await onRefresh();
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }
+    }
+  });
+
+  return (
+    <div {...swipeHandlers}>
+      {isRefreshing && <RefreshIndicator />}
+      {children}
+    </div>
+  );
+}
+```
+
+---
+
+# Appendix E: Keyboard Navigation Map
+
+## E.1 Global Shortcuts
+
+| Shortcut | Action | Context |
+|----------|--------|---------|
+| `Cmd/Ctrl + K` | Open global search | All pages |
+| `Cmd/Ctrl + /` | Show keyboard shortcuts | All pages |
+| `Esc` | Close modal/dropdown | Overlays active |
+| `?` | Show help | All pages |
+| `G then D` | Go to dashboard | All pages |
+| `G then S` | Go to sites | All pages |
+| `G then O` | Go to obligations | Site context |
+| `G then N` | Go to notifications | All pages |
+
+## E.2 List Navigation Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `↑` / `K` | Previous item |
+| `↓` / `J` | Next item |
+| `Enter` | Open selected item |
+| `Space` | Select/toggle item |
+| `Cmd/Ctrl + A` | Select all |
+| `Delete` | Delete selected |
+
+## E.3 Form Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + S` | Save form |
+| `Cmd/Ctrl + Enter` | Submit form |
+| `Esc` | Cancel/reset |
+| `Tab` | Next field |
+| `Shift + Tab` | Previous field |
 
 ---
 
