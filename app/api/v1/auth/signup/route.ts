@@ -100,10 +100,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Supabase Auth user using admin API (bypasses email validation)
+    // In test environment, auto-confirm email to allow immediate login
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.DISABLE_EMAIL_VERIFICATION === 'true';
+    
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: body.email.toLowerCase(),
       password: body.password,
-      email_confirm: false, // Email verification will be handled separately
+      email_confirm: isTestEnv, // Auto-confirm email in test environment
       user_metadata: {
         full_name: body.full_name,
         company_name: body.company_name,
@@ -165,6 +168,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user record (link to auth.users - id = auth.users.id)
+    // In test environment, mark email as verified immediately
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -172,7 +176,7 @@ export async function POST(request: NextRequest) {
         email: body.email.toLowerCase(),
         full_name: body.full_name,
         company_id: company.id,
-        email_verified: false, // Will be updated by auth trigger when email is verified
+        email_verified: isTestEnv || authUser.user.email_confirmed_at !== null, // Auto-verify in test environment
         is_active: true,
       })
       .select()

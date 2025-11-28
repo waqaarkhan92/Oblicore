@@ -58,7 +58,10 @@ export async function POST(request: NextRequest) {
 
     if (authError || !authData.session || !authData.user) {
       // Check if error is due to unverified email
-      if (authError?.message?.includes('Email not confirmed') || authError?.message?.includes('email_not_confirmed')) {
+      // Skip email verification check in test environment
+      const isTestEnv = process.env.NODE_ENV === 'test' || process.env.DISABLE_EMAIL_VERIFICATION === 'true';
+      
+      if (!isTestEnv && (authError?.message?.includes('Email not confirmed') || authError?.message?.includes('email_not_confirmed'))) {
         return errorResponse(
           ErrorCodes.UNAUTHORIZED,
           'Please verify your email before logging in',
