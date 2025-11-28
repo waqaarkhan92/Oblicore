@@ -95,13 +95,21 @@ export class TestClient {
 
     // Signup doesn't return tokens - need to login to get token
     // For test purposes, we'll login immediately after signup
+    // Wait a bit for the user to be fully created
     let token: string | undefined;
     try {
+      // Small delay to ensure user is fully created
+      await new Promise(resolve => setTimeout(resolve, 500));
       token = await this.login(email, password);
     } catch (error) {
-      // If login fails (e.g., email not verified), that's okay for tests
-      // We'll just proceed without token
-      console.warn('Login after signup failed (may need email verification):', error);
+      // If login fails, try one more time after a longer delay
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        token = await this.login(email, password);
+      } catch (retryError) {
+        // If still fails, log but continue - some tests might work without token
+        console.warn('Login after signup failed:', retryError);
+      }
     }
 
     return {
