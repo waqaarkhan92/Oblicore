@@ -144,7 +144,19 @@ Run verification:
 
 ## Phase 0.2: Account Setup
 
+**Status:** ✅ Partially Complete (Supabase ✅, OpenAI ✅)  
+**Deferred:** SendGrid, Vercel, Upstash Redis (will be set up in later phases when needed)
+
 **Task 0.2.1: Create Required Accounts**
+
+**✅ COMPLETED:**
+- ✅ Supabase (West London, Transaction Pooler configured)
+- ✅ OpenAI ($10/month limit set)
+
+**⏳ DEFERRED TO LATER PHASES:**
+- ⏳ SendGrid (needed in Phase 4 - Background Jobs for email notifications)
+- ⏳ Vercel (needed in Phase 5 - Frontend deployment)
+- ⏳ Upstash Redis (needed in Phase 4 - Background Jobs)
 
 **⚠️ CRITICAL DECISION POINT - ASK USER:**
 ```
@@ -369,6 +381,21 @@ Reference: EP_Compliance_Technical_Architecture_Stack.md Section 7
 
 ## Phase 0 Progress Checkpoint
 
+**Status:** ✅ COMPLETE (Core setup done, some accounts deferred)
+
+**✅ Completed:**
+- ✅ All required software installed and verified
+- ✅ Supabase account created and configured
+- ✅ OpenAI account created with API key
+- ✅ Environment variables template created
+- ✅ Local development environment set up
+- ✅ Git repository initialized on `develop` branch
+
+**⏳ Deferred (will be set up when needed):**
+- ⏳ SendGrid account (Phase 4)
+- ⏳ Vercel account (Phase 5)
+- ⏳ Upstash Redis (Phase 4)
+
 **Before moving to Phase 1, verify:**
 
 1. **Software Verification:**
@@ -401,7 +428,13 @@ Reference: EP_Compliance_Technical_Architecture_Stack.md Section 7
 
 **Duration:** 2-3 weeks  
 **Complexity:** High  
-**Dependencies:** None (starting point)
+**Dependencies:** Phase 0 complete  
+**Status:** 🚧 IN PROGRESS
+
+**Prerequisites Met:**
+- ✅ Supabase project created (West London)
+- ✅ Database connection configured (Transaction Pooler)
+- ✅ Environment variables set up
 
 ## Phase 1.1: Supabase Project Setup
 
