@@ -3447,7 +3447,9 @@ WITH CHECK (
 
 **Access Logic:**
 - Owners, Admins, Staff, and Consultants can create distributions
-- Distribution method access validated at API level (Growth Plan required for EMAIL/SHARED_LINK)
+- Distribution method access validated at API level:
+  - Core Plan: EMAIL for Regulator Pack and Audit Pack only
+  - Growth Plan/Consultant Edition: EMAIL for all pack types + SHARED_LINK
 
 ## 13.2 Shared Link Access
 

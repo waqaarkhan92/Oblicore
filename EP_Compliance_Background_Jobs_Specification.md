@@ -812,7 +812,7 @@ Step 11: Create Extraction Log
 |------------|-------------------|--------|-------|
 | File not found | Set status = 'FAILED', error_message = 'File not found' | FAILED | No |
 | OCR failure | Set status = 'OCR_FAILED', create review_queue_item | OCR_FAILED | Yes |
-| LLM timeout | Retry with same document (per PLS A.9.1: 30s standard, 5min large) | PROCESSING | Yes |
+| LLM timeout | Retry twice (3 total attempts) with same document (per PLS A.9.1: 30s standard, 5min large) | PROCESSING | Yes |
 | LLM error | Set status = 'EXTRACTION_FAILED', create review_queue_item | EXTRACTION_FAILED | Yes |
 | Validation errors | Set status = 'REVIEW_REQUIRED', create review_queue_item | REVIEW_REQUIRED | No |
 | Zero obligations extracted | Set status = 'ZERO_OBLIGATIONS', flag for review | ZERO_OBLIGATIONS | No |
@@ -1266,7 +1266,7 @@ Step 4: Send Completion Notification
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Max Retries | 2 | Not 3 - per PLS specification |
+| Max Retries | 2 retry attempts | Total attempts: 3 (1 initial + 2 retries) - per PLS Section A.9.1 |
 | Backoff Type | Exponential | `2^retry_count` seconds |
 | First Retry Delay | 2 seconds | 2^1 = 2 |
 | Second Retry Delay | 4 seconds | 2^2 = 4 |
@@ -1302,7 +1302,8 @@ async function executeWithRetry(job: Job): Promise<JobResult> {
         throw error;
       }
       
-      // Check if retries remaining
+      // Check if retries remaining (attempt 0 = initial, 1 = first retry, 2 = second retry)
+      // Total: 3 attempts (1 initial + 2 retries)
       if (attempt < job.maxRetries) {
         const delayMs = Math.pow(2, attempt + 1) * 1000;
         

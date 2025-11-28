@@ -3810,7 +3810,7 @@ curl -X POST https://api.epcompliance.com/api/v1/packs/board \
 ```
 
 **Error Codes:**
-- `403 FORBIDDEN` - Pack type doesn't support sharing (Core Plan packs)
+- `403 FORBIDDEN` - Distribution method not available for this pack type/plan (e.g., Core Plan cannot use shared links, Core Plan cannot email Tender/Board/Insurer packs)
 - `404 NOT_FOUND` - Pack not found
 
 ---
@@ -3821,7 +3821,9 @@ curl -X POST https://api.epcompliance.com/api/v1/packs/board \
 
 **Authentication:** Required (Owner, Admin, Staff)
 
-**Plan Requirement:** Growth Plan or Consultant Edition
+**Plan Requirement:** 
+- Core Plan: Email distribution for Regulator Pack and Audit Pack only
+- Growth Plan or Consultant Edition: Email distribution for all pack types + shared links
 
 **Request:**
 - **Method:** POST

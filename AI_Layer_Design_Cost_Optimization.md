@@ -113,7 +113,7 @@ export const AI_CONFIG = {
       safeContextLimit: 800_000, // Leave buffer for response
       inputCostPer1M: 2.00,
       outputCostPer1M: 8.00,
-      timeout: 30_000, // 30 seconds (standard documents <50 pages)
+      timeout: 30_000, // 30 seconds (standard documents ≤49 pages)
       largeDocumentTimeout: 300_000, // 5 minutes (large documents ≥50 pages, per PLS Section A.9.1)
       maxRetries: 2
     },
@@ -328,23 +328,26 @@ async function checkRuleLibrary(
 ## 3.2 Retry Limits
 
 **Retry Configuration:**
-- Maximum retries per document: 2
+- Maximum retries per document: 2 retry attempts (3 total attempts including initial)
+- Total attempts: 3 (1 initial + 2 retries)
 - Retry triggers: Invalid JSON, timeout, validation failure
 - Simplified prompt on retry (remove examples, reduce instructions)
-- Flag for manual review after 2 failed retries
+- Flag for manual review after 3 total attempts exhausted
 
 ```typescript
 // services/extraction.service.ts
 
 interface RetryConfig {
-  maxRetries: number;
-  retryDelayMs: number;
+  maxRetries: number;              // Number of retry attempts AFTER initial attempt
+  totalAttempts: number;            // Total attempts including initial (1 + maxRetries)
+  retryDelayMs: number[];           // Exponential backoff delays in milliseconds [firstRetry, secondRetry, ...]
   simplifyPromptOnRetry: boolean;
 }
 
 const RETRY_CONFIG: RetryConfig = {
-  maxRetries: 2,
-  retryDelayMs: 1000,
+  maxRetries: 2,              // Number of retry attempts AFTER initial attempt
+  totalAttempts: 3,           // Total attempts including initial (1 initial + 2 retries = 3 total)
+  retryDelayMs: [2000, 4000], // Exponential backoff: 2s (first retry), 4s (second retry)
   simplifyPromptOnRetry: true
 };
 
@@ -359,17 +362,22 @@ async function extractWithRetry(
     
     return await callOpenAI(prompt);
   } catch (error) {
+    // attempt 0 = initial, attempt 1 = first retry, attempt 2 = second retry
+    // Total: 3 attempts (initial + 2 retries)
+    // attempt 0 = initial, attempt 1 = first retry, attempt 2 = second retry
+    // Total: 3 attempts (1 initial + 2 retries)
     if (attempt < RETRY_CONFIG.maxRetries) {
-      await delay(RETRY_CONFIG.retryDelayMs);
+      const delayMs = RETRY_CONFIG.retryDelayMs[attempt - 1] || RETRY_CONFIG.retryDelayMs[RETRY_CONFIG.retryDelayMs.length - 1];
+      await delay(delayMs);
       return extractWithRetry(document, attempt + 1);
     }
     
-    // Flag for manual review after max retries
+    // Flag for manual review after max retries (3 total attempts exhausted)
     return {
       success: false,
       requiresManualReview: true,
       error: error.message,
-      attempts: attempt + 1
+      attempts: RETRY_CONFIG.totalAttempts // 3 total attempts
     };
   }
 }
@@ -378,14 +386,41 @@ async function extractWithRetry(
 ## 3.3 Timeout Configuration
 
 **Timeout Settings:**
-- API call timeout: 30 seconds (standard documents <50 pages)
+- API call timeout: 30 seconds (standard documents ≤49 pages)
 - API call timeout: 5 minutes (large documents ≥50 pages, per PLS Section A.9.1)
 - OCR processing timeout: 60 seconds
 - Total document processing timeout: 120 seconds
 
+**Timeout Threshold Configuration:**
 ```typescript
 const TIMEOUT_CONFIG = {
-  apiCall: 30_000,           // 30 seconds (standard documents <50 pages)
+  standardDocuments: {
+    maxPages: 49,           // Documents with ≤49 pages
+    timeout: 30_000         // 30 seconds
+  },
+  largeDocuments: {
+    minPages: 50,           // Documents with ≥50 pages
+    timeout: 300_000        // 5 minutes
+  }
+};
+
+// Implementation:
+function getDocumentTimeout(pageCount: number): number {
+  if (pageCount >= 50) {
+    return TIMEOUT_CONFIG.largeDocuments.timeout; // 5 minutes
+  }
+  return TIMEOUT_CONFIG.standardDocuments.timeout; // 30 seconds
+}
+```
+
+**Threshold Clarification:**
+- **49 pages or fewer** = Standard document (30s timeout)
+- **50 pages or more** = Large document (5min timeout)
+- Threshold is **inclusive at 50 pages** (50 pages = large document)
+
+```typescript
+const TIMEOUT_CONFIG = {
+  apiCall: 30_000,           // 30 seconds (standard documents ≤49 pages)
   apiCallLarge: 300_000,     // 5 minutes (large documents ≥50 pages, per PLS Section A.9.1)
   ocrProcessing: 60_000,     // 60 seconds
   totalProcessing: 120_000 // 2 minutes

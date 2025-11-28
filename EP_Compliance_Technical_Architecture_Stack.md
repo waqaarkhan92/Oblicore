@@ -486,7 +486,7 @@ aer-documents/
 - **Pipeline:** PDF → OCR (if needed) → Text extraction → LLM parsing → Database storage
 - **Queue:** `document-processing`
 - **Priority:** Normal
-- **Timeout:** 30 seconds (standard), 5 minutes (large documents ≥50 pages) per PLS Section A.9.1
+- **Timeout:** 30 seconds (standard documents ≤49 pages), 5 minutes (large documents ≥50 pages) per PLS Section A.9.1
 
 **Monitoring Schedule Jobs:**
 - **Trigger:** Recurring (cron: every hour)
@@ -526,9 +526,9 @@ aer-documents/
 ## 2.3 Job Infrastructure
 
 **Job Retry Strategy:**
-- **Max Retries:** 2 retries per job (per PLS Section B.7.4)
-  - Note: This means 2 retries after initial attempt (3 total attempts)
-  - Canonical Dictionary `background_jobs.max_retries` default is 3, but should be set to 2 per PLS
+- **Max Retries:** 2 retry attempts per job (3 total attempts: 1 initial + 2 retries) (per PLS Section A.9.1)
+  - Note: `maxRetries: 2` means 2 retry attempts AFTER initial attempt = 3 total attempts
+  - Canonical Dictionary `background_jobs.max_retries` default is 2 (2 retry attempts = 3 total attempts) per PLS Section A.9.1
 - **Retry Delay:** Exponential backoff (per PLS Section B.7.4)
   - Formula: `retry_backoff_seconds = 2^retry_count`
   - First retry (retry_count=1): 2 seconds (2^1)
@@ -1072,8 +1072,8 @@ types/
   
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-    timeout: 30000, // 30 seconds (standard documents)
-    maxRetries: 2
+    timeout: 30000, // 30 seconds (standard documents ≤49 pages)
+    maxRetries: 2  // 2 retry attempts = 3 total attempts (1 initial + 2 retries)
   });
   ```
 
@@ -1126,11 +1126,12 @@ lib/
 
 **Error Handling and Retries:**
 - **Timeout Policy:** Per PLS Section A.9.1
-  - Standard documents (<50 pages): 30 seconds
+  - Standard documents (≤49 pages): 30 seconds
   - Large documents (≥50 pages): 5 minutes
+  - Threshold: 50 pages is inclusive (50 pages = large document)
 - **Retry Policy:** Per PLS Section A.9.1
-  - Max retries: 2
-  - Retry delay: Exponential backoff (2s, 4s)
+  - Max retries: 2 retry attempts (3 total attempts: 1 initial + 2 retries)
+  - Retry delay: Exponential backoff (2s first retry, 4s second retry)
   - Retry triggers: LLM timeout, network timeout
 - **After Max Retries:** Flag for manual review
 

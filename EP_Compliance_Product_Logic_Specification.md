@@ -107,6 +107,7 @@ Module activation rules are defined in the `modules` table (see Canonical Dictio
 5. If prerequisite active (or no prerequisite), activation proceeds
 6. System creates `module_activations` record with `module_id` (not `module_type`)
 7. Billing logic queries `modules` table to calculate charges based on `base_price` and `pricing_model`
+8. **Billing starts immediately** (see Section E.4.1 for detailed billing logic)
 
 **Deactivation Logic:**
 - If Module 1 is deactivated:
@@ -393,20 +394,32 @@ When document is superseded:
 **This section defines the authoritative retry and timeout policy for all AI operations. All other documents must reference this section.**
 
 **Retry Policy:**
-- **Maximum Retries:** 2 attempts (initial attempt + 2 retries = 3 total attempts)
+- **Maximum Retries:** 2 retry attempts AFTER initial attempt
+- **Total Attempts:** 3 (1 initial attempt + 2 retry attempts)
 - **Retry Triggers:**
-  - LLM timeout (>30 seconds for standard documents, >5 minutes for large documents)
+  - LLM timeout (>30 seconds for standard documents ≤49 pages, >5 minutes for large documents ≥50 pages)
   - Invalid JSON response from LLM
   - Network timeout
   - Rate limit errors (429)
 - **Retry Delay:** Exponential backoff: 2 seconds (first retry), 4 seconds (second retry)
 - **After Max Retries:** Flag for manual review; user can retry manually or enter Manual Mode
 
+**Clarification:**
+- `maxRetries: 2` means 2 retry attempts (not 2 total attempts)
+- Total attempts = 1 initial + 2 retries = 3 total attempts
+- Implementation: `if (attempt < maxRetries)` where `attempt` starts at 0 (initial), then 1 (first retry), then 2 (second retry)
+
 **Timeout Policy:**
-- **Standard Documents (<50 pages):** 30 seconds timeout
+- **Standard Documents (≤49 pages):** 30 seconds timeout
 - **Large Documents (≥50 pages):** 5 minutes timeout
 - **OCR Processing:** 60 seconds timeout
 - **Pack Generation:** 60 seconds (standard), 5 minutes (large packs with >500 items) — applies to all pack types
+
+**Timeout Threshold Clarification:**
+- Documents with **49 pages or fewer** = Standard (30s timeout)
+- Documents with **50 pages or more** = Large (5min timeout)
+- Threshold is **inclusive at 50 pages** (50 pages = large document)
+- Implementation: `if (pageCount >= 50) { timeout = 300_000 } else { timeout = 30_000 }`
 
 **Enforcement:**
 - All AI operations must use these values
@@ -415,14 +428,30 @@ When document is superseded:
 - No hardcoded retry/timeout values in workflows - all reference this section
 
 **References:**
-- AI Layer implementation: `maxRetries: 2`, `timeout: 30_000` (standard), `timeout: 300_000` (large)
-- Workflow retry logic: "Retry processing (up to 2 additional attempts)" = references this policy
-- PLS error handling table: "LLM timeout (>30s) | Retry once" = references this policy (retry once = 1 retry after initial attempt = 2 total attempts)
+- AI Layer implementation: `maxRetries: 2` (2 retry attempts), `totalAttempts: 3`, `retryDelayMs: [2000, 4000]`, `timeout: 30_000` (standard), `timeout: 300_000` (large)
+- Workflow retry logic: "Retry processing (up to 2 additional attempts)" = references this policy (2 retries = 3 total attempts)
+- PLS error handling table: "LLM timeout (>30s) | Retry twice (3 total attempts)" = references this policy (2 retries after initial attempt = 3 total attempts)
+
+**Implementation Pattern:**
+```typescript
+const RETRY_CONFIG = {
+  maxRetries: 2,              // Number of retry attempts AFTER initial attempt
+  totalAttempts: 3,           // Total attempts including initial (1 + 2 retries)
+  retryDelayMs: [2000, 4000], // Exponential backoff: 2s (first retry), 4s (second retry)
+  simplifyPromptOnRetry: true
+};
+
+// Usage:
+if (attempt < RETRY_CONFIG.maxRetries) {
+  // attempt 0 = initial, attempt 1 = first retry, attempt 2 = second retry
+  // Total: 3 attempts (1 initial + 2 retries)
+}
+```
 
 ### A.9.1.1 Error Recovery Scenarios
 
 **OpenAI API Down:**
-- After 3 failed retries (initial + 2 retries), flag document for manual review
+- After 3 total attempts (1 initial + 2 retries), flag document for manual review
 - Set `extraction_status = 'EXTRACTION_FAILED'`
 - Notify user: "Extraction temporarily unavailable. Please try again in 1 hour or enter Manual Mode."
 - Queue document for automatic retry after 1 hour
@@ -713,7 +742,7 @@ The system uses a multi-model approach for extraction, with automatic routing ba
 
 **Primary Model (GPT-4o):**
 - **Use Cases:** All standard document extraction tasks
-- **Trigger:** Document size < 50 pages, standard document types
+- **Trigger:** Document size ≤49 pages, standard document types
 - **Model Identifier:** `gpt-4o`
 - **Timeout:** 30 seconds (standard), 5 minutes (large documents)
 
@@ -835,7 +864,7 @@ After LLM extraction, apply validation:
 
 | Error Type | Handling |
 |------------|----------|
-| LLM timeout (>30s) | Retry once; if fails, flag entire segment for manual review |
+| LLM timeout (>30s) | Retry twice (3 total attempts); if all fail, flag entire segment for manual review |
 | Invalid JSON response | Retry with simplified prompt; if fails, flag for manual |
 | Empty extraction | Flag segment; may indicate non-obligation content |
 | Confidence all <50% | Flag document quality issue; prompt user to verify scan quality |
@@ -2686,6 +2715,58 @@ GROUP BY m.id, m.pricing_model, m.base_price
 - Module deactivation → Credit issued (prorated if mid-period)
 - Document added → Charge added (prorated if mid-period)
 - Document removed → Credit issued (prorated if mid-period)
+
+### E.4.1 Module Activation Billing Logic
+
+**Billing Rules:**
+1. **Immediate Activation:** Module is activated immediately upon user confirmation
+2. **Prorated Charge:** If activated mid-month, customer is charged prorated amount for current month
+3. **Next Billing Cycle:** Full module price charged on next billing date (1st of month)
+4. **Billing Start:** Billing starts from activation date (not next billing cycle)
+
+**Proration Calculation:**
+```typescript
+function calculateProratedCharge(
+  basePrice: number,
+  activationDate: Date,
+  billingPeriodStart: Date,
+  billingPeriodEnd: Date
+): number {
+  const daysInPeriod = getDaysInMonth(billingPeriodStart);
+  const daysRemaining = getDaysBetween(activationDate, billingPeriodEnd) + 1; // +1 to include activation day
+  return (basePrice / daysInPeriod) * daysRemaining;
+}
+```
+
+**Example: Module 2 Activation (Mid-Month)**
+- Module 2 price: £59/month per site
+- Activation date: 15th of month (30-day month)
+- Days remaining: 16 days (15th to 30th, inclusive)
+- Prorated charge: £59 × (16 / 30) = **£31.47**
+- Next month (1st): Full charge **£59.00**
+
+**Example: Module 3 Activation (Start of Month)**
+- Module 3 price: £79/month per company
+- Activation date: 1st of month
+- Days remaining: 30 days (full month)
+- Charge: Full price **£79.00** (no proration needed)
+
+**Deactivation Billing:**
+- **No Refunds:** No refunds for partial months after deactivation
+- **Access Continuation:** Module access continues until end of current billing period
+- **Data Preservation:** Module data preserved for 90 days after deactivation
+- **Next Billing Cycle:** No charge for deactivated module on next billing date
+
+**Example: Module 2 Deactivation (Mid-Month)**
+- Module 2 deactivated: 20th of month
+- Access continues: Until 30th of month (end of billing period)
+- No refund: Customer has access until period end
+- Next month: No charge for Module 2
+
+**Billing Implementation:**
+- Activation creates `module_activations` record with `activated_at` timestamp
+- Billing system queries `module_activations` with `status = 'ACTIVE'` and `activated_at <= billing_period_end`
+- Proration calculated based on `activated_at` date relative to billing period
 - Site added → Charge added for per-site modules (prorated if mid-period)
 - Site removed → Credit issued for per-site modules (prorated if mid-period)
 
@@ -2850,7 +2931,7 @@ SUBJECTIVE_PHRASES = [
 | Segmentation | No sections found | Flag for manual review |
 | Module Routing | Ambiguous type | Prompt user selection |
 | Rule Lookup | Library unavailable | Proceed to LLM only |
-| LLM Extraction | Timeout (>30s) | Retry once; then flag for manual |
+| LLM Extraction | Timeout (>30s) | Retry twice (3 total attempts); then flag for manual |
 | LLM Extraction | Invalid response | Retry with simplified prompt |
 | Confidence Scoring | Calculation error | Default to 0% (require review) |
 
@@ -3409,7 +3490,7 @@ For each gap, system suggests:
 
 **PDF Generation Library Failure:**
 - If PDF library throws error:
-  - Retry once with different PDF library (if available)
+  - Retry twice (3 total attempts) with different PDF library (if available)
   - If still fails:
     - Mark pack as `status = 'FAILED'`
     - Return error: "PDF generation unavailable. Please contact support."
@@ -3684,9 +3765,12 @@ function canGeneratePackType(userPlan: string, packType: string): boolean {
 
 **Distribution Rules:**
 - **Download:** All pack types, all plans (Core Plan can download Regulator Pack and Audit Pack)
-- **Email:** Growth Plan packs only (Tender, Board, Insurer, Audit). Core Plan Regulator Pack download only (no email distribution).
+- **Email:** 
+  - Core Plan: Regulator Pack and Audit Pack only (email to inspectors/internal auditors)
+  - Growth Plan: All pack types (Regulator, Audit, Tender, Board, Insurer)
+  - **Rationale:** Email is a basic expectation for regulator/inspector communication. Client-facing packs (Tender, Board, Insurer) require Growth Plan.
 - **Shared Link:** Growth Plan packs only (Tender, Board, Insurer, Audit)
-- **Rationale:** Email/shared link distribution is premium feature for client-facing packs (Tender, Board, Insurer)
+  - **Rationale:** Shared links are premium feature for professional client engagement
 - **Consultant Edition:** Can distribute client packs to clients (all distribution methods available for assigned clients)
 
 **Shared Link Security:**

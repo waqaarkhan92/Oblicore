@@ -640,7 +640,7 @@ This document ensures **true consistency** across all documentation by:
 - ✅ Pack type: `REGULATOR_INSPECTION` — Consistent
 - ✅ Plan access: Core Plan included — Consistent
 - ✅ Content: Inspector-ready format — Consistent
-- ✅ Distribution: Download only (Core Plan) — Consistent
+- ✅ Distribution: Download + Email for Regulator Pack and Audit Pack (Core Plan) — Consistent
 
 ---
 
@@ -751,17 +751,18 @@ This document ensures **true consistency** across all documentation by:
 - ✅ Pack type: `AUDIT_PACK` — Consistent
 - ✅ Plan access: All plans — Consistent
 - ✅ Content: Full evidence compilation — Consistent
-- ✅ Distribution: Download (all plans), Email/Shared Link (Growth Plan) — Consistent
+- ✅ Distribution: Download (all plans), Email (Core Plan: Regulator/Audit only; Growth Plan: all packs), Shared Link (Growth Plan only) — Consistent
 
 ---
 
 ## 2.6 Pack Distribution
 
-**Feature Description:** Packs can be distributed via download, email, or shared link. Email and shared link are Growth Plan features only. Core Plan can only download.
+**Feature Description:** Packs can be distributed via download, email, or shared link. Core Plan can email Regulator Pack and Audit Pack. Growth Plan can email all pack types and use shared links.
 
 **Plan Access:** 
-- Download: All plans
-- Email/Shared Link: Growth Plan only
+- Download: All plans (all pack types)
+- Email: Core Plan (Regulator Pack, Audit Pack only) | Growth Plan (all pack types)
+- Shared Link: Growth Plan only (all pack types)
 
 **Referenced In:**
 - ✅ `EP_Compliance_Master_Plan.md` — Section 5 (Solution Architecture)
@@ -778,7 +779,7 @@ This document ensures **true consistency** across all documentation by:
 
 **Consistency Check:**
 - ✅ Distribution methods: DOWNLOAD, EMAIL, SHARED_LINK — Consistent
-- ✅ Plan restrictions: Email/Shared Link Growth Plan only — Consistent
+- ✅ Plan restrictions: Email (Core Plan: Regulator/Audit only; Growth Plan: all packs), Shared Link (Growth Plan only) — Consistent
 - ✅ Shared link expiration: Default 30 days — Consistent
 - ✅ Distribution tracking: `pack_distributions` table — Consistent
 
