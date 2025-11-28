@@ -5325,8 +5325,6 @@ Create GitHub Actions workflow for automated testing:
    - Start test server
    - Run tests
    - Generate coverage report
-
-Reference: TESTING_AND_QUALITY_ASSURANCE_STRATEGY.md
 ```
 
 **Workflow File:**
