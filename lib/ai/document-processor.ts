@@ -4,7 +4,8 @@
  * Reference: EP_Compliance_Background_Jobs_Specification.md Section 3.1
  */
 
-import pdfParse from 'pdf-parse';
+// @ts-ignore - pdf-parse has inconsistent exports
+const pdfParse = require('pdf-parse');
 import { createWorker } from 'tesseract.js';
 import { getOpenAIClient } from './openai-client';
 import { getRuleLibraryMatcher, RuleMatch } from './rule-library-matcher';
