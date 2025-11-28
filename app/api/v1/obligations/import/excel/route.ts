@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { successResponse, errorResponse, ErrorCodes } from '@/lib/api/response';
 import { requireAuth, requireRole, getRequestId } from '@/lib/api/middleware';
+import { getQueue, QUEUE_NAMES } from '@/lib/queue/queue-manager';
 import * as XLSX from 'xlsx';
 import crypto from 'crypto';
 
@@ -234,9 +235,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Trigger background job for processing (Phase 4)
-    // For now, return 202 Accepted with status PROCESSING
-    // Background job will update status to PENDING_REVIEW when ready
+    // Enqueue background job for validation phase
+    try {
+      const documentQueue = getQueue(QUEUE_NAMES.DOCUMENT_PROCESSING);
+
+      // Create background_jobs record
+      const { data: jobRecord, error: jobError } = await supabaseAdmin
+        .from('background_jobs')
+        .insert({
+          job_type: 'EXCEL_IMPORT_PROCESSING',
+          status: 'PENDING',
+          priority: 'NORMAL',
+          entity_type: 'excel_imports',
+          entity_id: excelImport.id,
+          company_id: site.company_id,
+          payload: JSON.stringify({
+            import_id: excelImport.id,
+            phase: 'VALIDATION',
+          }),
+        })
+        .select('id')
+        .single();
+
+      if (!jobError && jobRecord) {
+        // Enqueue job in BullMQ
+        await documentQueue.add(
+          'EXCEL_IMPORT_PROCESSING',
+          {
+            import_id: excelImport.id,
+            phase: 'VALIDATION',
+          },
+          {
+            jobId: jobRecord.id,
+            priority: 5, // Normal priority
+          }
+        );
+      } else {
+        console.error('Failed to create background job record:', jobError);
+      }
+    } catch (error: any) {
+      console.error('Failed to enqueue Excel import job:', error);
+      // Continue anyway - job can be retried manually
+    }
 
     return successResponse(
       {
