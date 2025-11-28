@@ -2203,6 +2203,703 @@ ConsultantClientDetail
 
 ---
 
+# 17. Animation Library
+
+## 17.1 Animation Principles
+
+**Animation Philosophy:**
+- **Purposeful:** Every animation should serve a functional purpose
+- **Subtle:** Animations should enhance, not distract
+- **Performant:** Use GPU-accelerated properties (transform, opacity)
+- **Consistent:** Use standardized durations and easing functions
+
+## 17.2 Animation Durations
+
+| Speed | Duration | Use Case |
+|-------|----------|----------|
+| **Fast** | 150ms | Micro-interactions (button hover, checkbox toggle) |
+| **Normal** | 300ms | Standard transitions (modal open, dropdown expand) |
+| **Slow** | 500ms | Page transitions, complex animations |
+| **Very Slow** | 800ms+ | Special effects (celebration animations) |
+
+## 17.3 Easing Functions
+
+**CSS Easing:**
+```css
+/* Ease Out (default for most animations) */
+transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+
+/* Ease In (for exit animations) */
+transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+
+/* Ease In Out (for smooth both-way animations) */
+transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+/* Sharp (for snappy interactions) */
+transition-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+```
+
+**Tailwind Easing Classes:**
+- `ease-out` - Default, cubic-bezier(0, 0, 0.2, 1)
+- `ease-in` - For exits, cubic-bezier(0.4, 0, 1, 1)
+- `ease-in-out` - Smooth both ways, cubic-bezier(0.4, 0, 0.2, 1)
+
+## 17.4 Common Animations
+
+### Button Hover Animation
+```css
+.button {
+  transition: transform 150ms cubic-bezier(0, 0, 0.2, 1),
+              background-color 150ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  background-color: #014D4A; /* Darker teal */
+}
+
+.button:active {
+  transform: translateY(0);
+}
+```
+
+### Modal Enter/Exit Animation
+```typescript
+// Framer Motion variant
+const modalVariants = {
+  hidden: {
+    opacity: 0,
+    scale: 0.95,
+    y: 10
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0, 0, 0.2, 1]
+    }
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: 10,
+    transition: {
+      duration: 0.2,
+      ease: [0.4, 0, 1, 1]
+    }
+  }
+};
+```
+
+### Slide-in Notification
+```typescript
+const toastVariants = {
+  hidden: {
+    opacity: 0,
+    x: 100
+  },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      duration: 0.3,
+      ease: [0, 0, 0.2, 1]
+    }
+  },
+  exit: {
+    opacity: 0,
+    x: 100,
+    transition: {
+      duration: 0.2,
+      ease: [0.4, 0, 1, 1]
+    }
+  }
+};
+```
+
+### Skeleton Loader Animation
+```css
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #E2E6E7 0%,
+    #F9FAFB 50%,
+    #E2E6E7 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+```
+
+### Spinner Animation
+```css
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+```
+
+### Progress Bar Animation
+```css
+@keyframes progress {
+  0% {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+.progress-bar {
+  animation: progress 0.5s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+```
+
+### Success Checkmark Animation
+```css
+@keyframes checkmark {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.checkmark {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: checkmark 0.5s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+```
+
+## 17.5 Loading Animations
+
+**Spinner Component:**
+```typescript
+function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = {
+    sm: 'w-4 h-4',
+    md: 'w-6 h-6',
+    lg: 'w-8 h-8'
+  };
+
+  return (
+    <svg
+      className={`animate-spin ${sizes[size]} text-[#026A67]`}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
+```
+
+## 17.6 Celebration Animations
+
+**Success Confetti (optional):**
+```typescript
+import confetti from 'canvas-confetti';
+
+function triggerSuccessConfetti() {
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 },
+    colors: ['#026A67', '#1E7A50', '#039A96']
+  });
+}
+
+// Usage: When pack generation completes, obligation marked as complete, etc.
+```
+
+---
+
+# 18. Chart & Visualization Standards
+
+## 18.1 Chart Library
+
+**Recommended Library:** Recharts (React-based charting library)
+
+**Installation:**
+```bash
+npm install recharts
+```
+
+**Advantages:**
+- React-native API
+- Responsive by default
+- Accessible
+- Customizable
+- Good performance
+
+## 18.2 Chart Color Palette
+
+**Primary Chart Colors (use design system colors):**
+1. Primary Teal: `#026A67`
+2. Success Green: `#1E7A50`
+3. Warning Amber: `#CB7C00`
+4. Danger Red: `#B13434`
+5. Info Blue: `#3B82F6` (secondary color)
+6. Purple: `#8B5CF6` (accent)
+7. Pink: `#EC4899` (accent)
+
+**Chart Background:**
+- Light mode: White `#FFFFFF`
+- Dark mode: Dark Charcoal `#101314`
+
+**Grid Lines:**
+- Light mode: `#E2E6E7`
+- Dark mode: `#374151`
+
+**Text Colors:**
+- Light mode: `#101314`
+- Dark mode: `#E2E6E7`
+
+## 18.3 Chart Types & Usage
+
+### Line Chart (Trends over time)
+**Use for:**
+- Parameter values over time (Module 2)
+- Run hours tracking (Module 3)
+- Compliance score trends
+- Obligation completion trends
+
+**Example:**
+```typescript
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+function ParameterTrendChart({ data }: { data: ParameterData[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#E2E6E7" />
+        <XAxis
+          dataKey="date"
+          stroke="#6B7280"
+          style={{ fontSize: '12px' }}
+        />
+        <YAxis
+          stroke="#6B7280"
+          style={{ fontSize: '12px' }}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E2E6E7',
+            borderRadius: '4px'
+          }}
+        />
+        <Legend />
+        <Line
+          type="monotone"
+          dataKey="value"
+          stroke="#026A67"
+          strokeWidth={2}
+          dot={{ fill: '#026A67', r: 4 }}
+          activeDot={{ r: 6 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="limit"
+          stroke="#B13434"
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          dot={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+### Bar Chart (Comparisons)
+**Use for:**
+- Obligation counts by category
+- Compliance scores by site
+- Monthly report summaries
+
+**Example:**
+```typescript
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+function ObligationsByCategoryChart({ data }: { data: CategoryData[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#E2E6E7" />
+        <XAxis dataKey="category" stroke="#6B7280" />
+        <YAxis stroke="#6B7280" />
+        <Tooltip />
+        <Bar dataKey="count" fill="#026A67" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+### Pie Chart (Proportions)
+**Use for:**
+- Obligation status distribution (compliant/non-compliant/at-risk)
+- Document types distribution
+- Evidence types distribution
+
+**Example:**
+```typescript
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+
+const STATUS_COLORS = {
+  compliant: '#1E7A50',
+  at_risk: '#CB7C00',
+  non_compliant: '#B13434'
+};
+
+function ObligationStatusChart({ data }: { data: StatusData[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+          outerRadius={80}
+          fill="#8884d8"
+          dataKey="value"
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.status]} />
+          ))}
+        </Pie>
+        <Tooltip />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+### Area Chart (Cumulative trends)
+**Use for:**
+- Cumulative obligation completion
+- Cumulative parameter exceedances
+- Evidence upload trends
+
+## 18.4 Chart Interaction Patterns
+
+**Tooltip:**
+- Show on hover
+- Display exact values
+- Include units (e.g., "mg/L", "hours")
+- Format dates consistently
+
+**Legend:**
+- Position: Bottom (mobile), Right (desktop)
+- Clickable to toggle series visibility
+- Color-coded labels
+
+**Zoom/Pan:**
+- Not required for v1
+- Consider for dense time-series data
+
+**Drill-Down:**
+- Click data point → navigate to detail view
+- Example: Click obligation bar → navigate to obligation detail
+
+## 18.5 Responsive Chart Behavior
+
+**Mobile:**
+- Reduce height (200px instead of 300px)
+- Simplify labels (shorter text)
+- Hide legend if space limited (show in tooltip instead)
+- Stack charts vertically
+
+**Desktop:**
+- Full height (300-400px)
+- Show all labels
+- Display legend
+- Multi-column chart layouts
+
+---
+
+# 19. Icon System
+
+## 19.1 Icon Library
+
+**Recommended Library:** Lucide React (formerly Feather Icons)
+
+**Installation:**
+```bash
+npm install lucide-react
+```
+
+**Advantages:**
+- Comprehensive icon set (1000+ icons)
+- Tree-shakeable
+- TypeScript support
+- Consistent stroke width
+- Customizable size and color
+
+## 19.2 Icon Sizes
+
+| Size | Pixels | Tailwind Class | Use Case |
+|------|--------|----------------|----------|
+| **Extra Small** | 12px | `w-3 h-3` | Inline text icons |
+| **Small** | 16px | `w-4 h-4` | Button icons, badges |
+| **Medium** | 20px | `w-5 h-5` | Default UI icons |
+| **Large** | 24px | `w-6 h-6` | Prominent actions |
+| **Extra Large** | 32px | `w-8 h-8` | Empty states, headers |
+
+## 19.3 Icon Colors
+
+**Default:** Inherit text color
+- Most icons should inherit the parent text color
+- Use `className="text-current"` or omit color prop
+
+**Semantic Colors:**
+- Success: `text-[#1E7A50]`
+- Warning: `text-[#CB7C00]`
+- Danger: `text-[#B13434]`
+- Info: `text-[#026A67]`
+- Neutral: `text-[#6B7280]`
+
+## 19.4 Common Icon Usage
+
+**Button Icons:**
+```typescript
+import { Plus, Trash2, Edit, Download } from 'lucide-react';
+
+<button className="flex items-center gap-2 px-4 py-2 bg-[#026A67] text-white rounded-md">
+  <Plus className="w-5 h-5" />
+  Add Obligation
+</button>
+```
+
+**Status Icons:**
+```typescript
+import { CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+
+const statusIcons = {
+  compliant: <CheckCircle className="w-5 h-5 text-[#1E7A50]" />,
+  at_risk: <AlertTriangle className="w-5 h-5 text-[#CB7C00]" />,
+  non_compliant: <XCircle className="w-5 h-5 text-[#B13434]" />,
+  pending: <Clock className="w-5 h-5 text-[#6B7280]" />
+};
+```
+
+**Navigation Icons:**
+```typescript
+import { Home, FileText, Calendar, Bell, Settings, Users } from 'lucide-react';
+
+const navIcons = {
+  dashboard: <Home className="w-5 h-5" />,
+  documents: <FileText className="w-5 h-5" />,
+  obligations: <Calendar className="w-5 h-5" />,
+  notifications: <Bell className="w-5 h-5" />,
+  settings: <Settings className="w-5 h-5" />,
+  users: <Users className="w-5 h-5" />
+};
+```
+
+## 19.5 Icon Accessibility
+
+**Always provide accessible labels:**
+```typescript
+<button aria-label="Delete obligation">
+  <Trash2 className="w-5 h-5" aria-hidden="true" />
+</button>
+
+// Or with visible label
+<button className="flex items-center gap-2">
+  <Trash2 className="w-5 h-5" aria-hidden="true" />
+  <span>Delete</span>
+</button>
+```
+
+---
+
+# 20. Illustration System
+
+## 20.1 Illustration Style
+
+**Style Guidelines:**
+- **Simple:** Flat design, minimal details
+- **Colorful:** Use design system colors
+- **Friendly:** Approachable, not corporate stiff
+- **Consistent:** Same stroke width, same style across all illustrations
+
+**Recommended Tool:** unDraw, Humaaans, or custom illustrations
+
+## 20.2 Illustration Usage
+
+### Empty States
+**When to use:**
+- No data yet (e.g., "No obligations found")
+- No search results
+- No notifications
+- Error states (404, 500)
+
+**Design:**
+- Centered illustration (200-300px width)
+- Heading below illustration
+- Descriptive text
+- Call-to-action button
+
+**Example:**
+```typescript
+function EmptyObligationsState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-12">
+      <img
+        src="/illustrations/empty-obligations.svg"
+        alt=""
+        className="w-64 h-64 mb-6"
+      />
+      <h3 className="text-xl font-semibold text-[#101314] mb-2">
+        No obligations yet
+      </h3>
+      <p className="text-[#6B7280] text-center max-w-md mb-6">
+        Upload your first permit document to get started with obligation tracking.
+      </p>
+      <button className="px-6 py-3 bg-[#026A67] text-white rounded-md font-medium">
+        Upload Permit
+      </button>
+    </div>
+  );
+}
+```
+
+### Success States
+**When to use:**
+- Pack generation complete
+- Obligation marked as complete
+- Document uploaded successfully
+- Evidence linked successfully
+
+**Design:**
+- Celebratory illustration (checkmark, confetti)
+- Success message
+- Next steps
+
+### Error States
+**When to use:**
+- 404 Page not found
+- 500 Server error
+- Upload failed
+- Processing failed
+
+**Design:**
+- Error illustration (broken page, warning sign)
+- Error message (friendly, not technical)
+- Recovery actions (retry, go back, contact support)
+
+**Example:**
+```typescript
+function NotFoundPage() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <img
+        src="/illustrations/404.svg"
+        alt=""
+        className="w-96 h-96 mb-8"
+      />
+      <h1 className="text-4xl font-bold text-[#101314] mb-4">
+        Page Not Found
+      </h1>
+      <p className="text-lg text-[#6B7280] text-center max-w-md mb-8">
+        The page you're looking for doesn't exist or has been moved.
+      </p>
+      <div className="flex gap-4">
+        <button
+          onClick={() => router.back()}
+          className="px-6 py-3 border-2 border-[#101314] text-[#101314] rounded-md font-medium"
+        >
+          Go Back
+        </button>
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="px-6 py-3 bg-[#026A67] text-white rounded-md font-medium"
+        >
+          Go to Dashboard
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+## 20.3 Illustration Color Palette
+
+**Primary Colors (from design system):**
+- Primary Teal: `#026A67`
+- Success Green: `#1E7A50`
+- Warning Amber: `#CB7C00`
+- Soft Slate: `#E2E6E7`
+
+**Illustration-Specific Colors:**
+- Background shapes: `#E2E6E7`, `#F9FAFB`
+- Accent colors: `#039A96`, `#3B82F6`
+- Skin tones: Use inclusive, diverse range
+
+## 20.4 Illustration Specifications
+
+**File Format:**
+- SVG (preferred, scalable)
+- PNG (fallback, @2x resolution)
+
+**Size:**
+- Small: 200×200px
+- Medium: 300×300px
+- Large: 400×400px
+
+**Optimization:**
+- Minify SVG
+- Remove unnecessary metadata
+- Compress PNG (TinyPNG, ImageOptim)
+
+**Accessibility:**
+- Empty `alt=""` for decorative illustrations
+- Descriptive `alt` if conveying meaning
+- Ensure good contrast for essential elements
+
+---
+
 **Document Complete**
 
 This specification defines the complete UI/UX design system for the Oblicore platform, including all design tokens, component specifications, navigation patterns, mobile responsiveness, accessibility guidelines, performance specifications, and implementation details.
