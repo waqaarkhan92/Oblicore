@@ -11,6 +11,7 @@ import { processDocumentJob } from '../jobs/document-processing-job';
 import { processMonitoringScheduleJob } from '../jobs/monitoring-schedule-job';
 import { processDeadlineAlertJob } from '../jobs/deadline-alert-job';
 import { processEvidenceReminderJob } from '../jobs/evidence-reminder-job';
+import { processExcelImportJob } from '../jobs/excel-import-job';
 
 // Worker instances
 const workers: Map<string, Worker> = new Map();
@@ -49,12 +50,14 @@ export function createWorker<T = any>(
 export function startAllWorkers(): void {
   console.log('Starting background job workers...');
 
-  // Document Processing Worker
+  // Document Processing Worker (handles both document extraction and Excel import)
   const documentWorker = createWorker(
     QUEUE_NAMES.DOCUMENT_PROCESSING,
     async (job) => {
       if (job.name === 'DOCUMENT_EXTRACTION') {
         await processDocumentJob(job);
+      } else if (job.name === 'EXCEL_IMPORT_PROCESSING') {
+        await processExcelImportJob(job);
       } else {
         throw new Error(`Unknown job type: ${job.name}`);
       }

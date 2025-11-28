@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { successResponse, errorResponse, ErrorCodes } from '@/lib/api/response';
 import { requireAuth, requireRole, getRequestId } from '@/lib/api/middleware';
+import { getQueue, QUEUE_NAMES } from '@/lib/queue/queue-manager';
 
 export async function POST(
   request: NextRequest,
@@ -88,16 +89,13 @@ export async function POST(
       create_missing_permits,
     };
 
-    // Update import status to COMPLETED (background job will actually create obligations)
-    // For now, we'll mark it as COMPLETED and the background job will handle creation
-    // TODO: Trigger background job Phase 2 (bulk obligation creation) - Phase 4
+    // Update import status to PROCESSING (background job will create obligations)
     const { data: updatedImport, error: updateError } = await supabaseAdmin
       .from('excel_imports')
       .update({
-        status: 'COMPLETED',
+        status: 'PROCESSING',
         import_options: updatedImportOptions,
         updated_at: new Date().toISOString(),
-        // completed_at will be set by background job
       })
       .eq('id', importId)
       .select('id, status, success_count, error_count, obligation_ids')
@@ -113,14 +111,55 @@ export async function POST(
       );
     }
 
-    // TODO: Trigger background job for bulk obligation creation
-    // For now, return success with estimated count
+    // Enqueue background job for bulk creation phase
+    try {
+      const documentQueue = getQueue(QUEUE_NAMES.DOCUMENT_PROCESSING);
+
+      // Create background_jobs record
+      const { data: jobRecord, error: jobError } = await supabaseAdmin
+        .from('background_jobs')
+        .insert({
+          job_type: 'EXCEL_IMPORT_PROCESSING',
+          status: 'PENDING',
+          priority: 'NORMAL',
+          entity_type: 'excel_imports',
+          entity_id: updatedImport.id,
+          company_id: excelImport.company_id,
+          payload: JSON.stringify({
+            import_id: updatedImport.id,
+            phase: 'BULK_CREATION',
+          }),
+        })
+        .select('id')
+        .single();
+
+      if (!jobError && jobRecord) {
+        // Enqueue job in BullMQ
+        await documentQueue.add(
+          'EXCEL_IMPORT_PROCESSING',
+          {
+            import_id: updatedImport.id,
+            phase: 'BULK_CREATION',
+          },
+          {
+            jobId: jobRecord.id,
+            priority: 5, // Normal priority
+          }
+        );
+      } else {
+        console.error('Failed to create background job record:', jobError);
+      }
+    } catch (error: any) {
+      console.error('Failed to enqueue Excel import bulk creation job:', error);
+      // Continue anyway - job can be retried manually
+    }
+
     const estimatedCount = excelImport.valid_count || 0;
 
     return successResponse(
       {
         import_id: updatedImport.id,
-        status: updatedImport.status,
+        status: 'PROCESSING', // Background job will update to COMPLETED
         success_count: updatedImport.success_count || 0,
         error_count: updatedImport.error_count || 0,
         obligation_ids: updatedImport.obligation_ids || [],
