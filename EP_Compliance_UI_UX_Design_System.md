@@ -2070,7 +2070,9 @@ GeneratePackModal
 
 **Component:** `PackDistributionPanel`
 
-**Purpose:** Distribute packs via email or shared link (Growth Plan only)
+**Purpose:** Distribute packs via email or shared link:
+- Core Plan: Email for Regulator Pack and Audit Pack only
+- Growth Plan: Email for all pack types + shared links
 
 **Props:**
 ```typescript

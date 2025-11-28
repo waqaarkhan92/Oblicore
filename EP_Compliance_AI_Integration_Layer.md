@@ -1899,10 +1899,11 @@ interface ValidationError {
 
 ### Retry Logic
 
-- **Retry Strategy:** Exponential backoff (2 retries, 2s, 4s delays)
+- **Retry Strategy:** Exponential backoff (2 retry attempts, 2s, 4s delays)
+- **Total Attempts:** 3 (1 initial attempt + 2 retry attempts)
 - **Retry Conditions:** Retry on transient errors (rate limit, timeout, server errors)
 - **No Retry:** Don't retry on permanent errors (invalid key, validation errors)
-- **Max Retries:** Maximum 2 retries per request
+- **Max Retries:** 2 retry attempts per request (3 total attempts)
 
 ### Retry Implementation
 

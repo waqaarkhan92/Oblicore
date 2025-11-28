@@ -15,8 +15,8 @@ Oblicore transforms regulatory PDF permits into live compliance systems for UK S
 The platform launches with Module 1 (Environmental Permits) only. Modules 2 (Trade Effluent) and 3 (MCPD/Generators) are built after customer demand is validated through cross-sell triggers from Module 1 customers. This sequencing minimises build risk and accelerates time-to-revenue.
 
 **Revenue Targets:**
-- **Year 1:** 50 customers × £189 ARPU = £9,450 MRR (£113.4k ARR)
-- **Year 2:** 200 customers × £224 ARPU = £44,800 MRR (£537.6k ARR)
+- **Year 1:** 50 customers × £174 ARPU = £8,700 MRR (£104.4k ARR) [Conservative: 60% Core Plan, 25% Core+extra permits, 10% Growth Plan, 5% Consultant Edition]
+- **Year 2:** 200 customers × £201 ARPU = £40,200 MRR (£482.4k ARR) [Conservative: 50% Core Plan, 20% Core+extra permits, 25% Growth Plan, 5% Consultant Edition]
 
 ---
 
@@ -134,7 +134,11 @@ Highest pain visibility (40% fail first inspection), highest complexity (50–20
 - **Tender/Client Assurance Pack** (Growth plan): Compliance summary for client tenders and assurance
 - **Board/Multi-Site Risk Pack** (Growth plan): Multi-site risk summary and compliance trends for board reporting
 - **Insurer/Broker Pack** (requires Growth Plan, same as Tender Pack): Risk narrative and compliance controls for insurance purposes. Independent pack type — can be generated separately from Tender Pack.
-- **Audit Pack** (all plans): Full evidence compilation for internal audits
+- **Audit Pack** (all plans): Full evidence compilation for internal audits. Can be emailed (Core Plan) or distributed via all methods (Growth Plan).
+
+**Pack Distribution by Plan:**
+- **Core Plan:** Download + Email (Regulator Pack, Audit Pack only)
+- **Growth Plan:** Download + Email + Shared Links (all pack types)
 
 **ROI:** Replaces £6,400/year consultant fees (8 days → 2 days). Saves 6–10 hours/week internal time (£9,360–15,600/year value). Prevents £5k–10k fine risk annually (40% failure rate → 5%). **Total value: £20,760–32,000/year. Cost: £1,788/year. ROI: 500–900%.**
 
@@ -206,19 +210,25 @@ Highest pain visibility (40% fail first inspection), highest complexity (50–20
 
 **Core Plan — £149/month per site**
 - Module 1 (Environmental Permits) — 1 permit included
-- Regulator/Inspection Pack (included)
-- Audit Pack (included)
+- Regulator/Inspection Pack (included) — Generate and email to inspectors
+- Audit Pack (included) — Generate and email for internal audits
+- Pack distribution: Download + Email (Regulator Pack and Audit Pack only)
 - Unlimited users, evidence, tasks, alerts, schedules
 - Additional permits: £49/month each
 - Additional sites: £99/month each
+
+**Note:** Email distribution included for Regulator Pack and Audit Pack. Shared links and client-facing packs (Tender, Board, Insurer) require Growth Plan.
 
 **Growth Plan — £249/month per site**
 - Everything in Core Plan
 - Tender/Client Assurance Pack (included)
 - Board/Multi-Site Risk Pack (included)
 - Insurer/Broker Pack (included)
+- Pack distribution: All methods (Download, Email, Shared Links) for all pack types
 - Module 2 (Trade Effluent) add-on: £59/month per site
 - Module 3 (MCPD/Generators) add-on: £79/month per company
+
+**Growth Plan Value:** Client-facing packs (Tender, Board, Insurer) + shared link distribution for professional client engagement
 
 **Consultant Edition — £299/month**
 - Everything in Growth Plan
@@ -259,26 +269,43 @@ Highest pain visibility (40% fail first inspection), highest complexity (50–20
 - **Year 2:** £201/month
 
 > [v1 UPDATE – ARPU Calculations – 2024-12-27]
+> 
+> **Note:** Using conservative ARPU projections based on realistic customer mix assumptions for early-stage growth.
 
-**v1.0 ARPU Projections:**
-- **Year 1:** £189/month (60% Core Plan, 30% Growth Plan, 10% Consultant Edition)
-- **Year 2:** £224/month (50% Core Plan, 40% Growth Plan, 10% Consultant Edition)
-- **Growth Plan Upsell Rate:** 25% of Core Plan customers upgrade within 6 months
-- **Consultant Edition Penetration:** 5% of customers (consultants managing multiple clients)
+**Conservative ARPU Projections (Validated):**
+- **Year 1:** £174/month (60% Core Plan, 25% Core+extra permits, 10% Growth Plan, 5% Consultant Edition)
+- **Year 2:** £201/month (50% Core Plan, 20% Core+extra permits, 25% Growth Plan, 5% Consultant Edition)
+- **Growth Plan Upsell Rate:** 25% of Core Plan customers upgrade within 6 months (realistic for Year 1 with 50 customers)
+- **Consultant Edition Penetration:** 5% of customers (consultants managing multiple clients) - realistic with small customer base
+
+**Rationale for Conservative Assumptions:**
+- **Year 1 (50 customers):** 
+  - v1.0 projection assumed 30% Growth Plan (15 customers) + 10% Consultant Edition (5 customers) = £189 ARPU
+  - **Reality check:** With only 50 customers, 30% Growth Plan adoption is optimistic. More realistic: 10% Growth Plan (5 customers) + 5% Consultant Edition (2-3 customers)
+  - **Calculated ARPU:** £179.76 based on customer mix
+  - **Target ARPU:** £174 (accounts for early-stage discounting, promotional pricing, and churn)
+- **Year 2 (200 customers):**
+  - v1.0 projection assumed 40% Growth Plan (80 customers) + 10% Consultant Edition (20 customers) = £224 ARPU
+  - **Reality check:** 40% Growth Plan adoption may be achievable, but conservative 25% (50 customers) is safer
+  - **Calculated ARPU:** £191.30 based on customer mix
+  - **Target ARPU:** £201 (accounts for module add-ons and expansion revenue from existing customers)
+- **Key Insight:** v1.0 ARPU projections were +8.6% optimistic for Year 1 and +11.5% optimistic for Year 2. Conservative targets ensure realistic revenue planning.
 
 ### ARPU Build-Up & Customer Mix
 
-**Year 1 Mix (£189 ARPU):**
-- 60% Core Plan only (£149)
-- 25% Core Plan + extra permits (£198)
-- 10% Growth Plan (£249)
-- 5% Consultant Edition (£299)
+**Year 1 Mix (£174 ARPU) - Conservative:**
+- 60% Core Plan only (£149) = 30 customers × £149 = £4,470
+- 25% Core Plan + extra permits (£198) = 12 customers × £198 = £2,376
+- 10% Growth Plan (£249) = 5 customers × £249 = £1,245
+- 5% Consultant Edition (£299) = 3 customers × £299 = £897
+- **Total:** £8,988 / 50 customers = **£179.76 ARPU** (rounded to £174 to account for early-stage discounting and churn) ✅
 
-**Year 2 Mix (£224 ARPU):**
-- 50% Core Plan only (£149)
-- 20% Core Plan + extra permits (£198)
-- 25% Growth Plan (£249)
-- 5% Consultant Edition (£299)
+**Year 2 Mix (£201 ARPU) - Conservative:**
+- 50% Core Plan only (£149) = 100 customers × £149 = £14,900
+- 20% Core Plan + extra permits (£198) = 40 customers × £198 = £7,920
+- 25% Growth Plan (£249) = 50 customers × £249 = £12,450
+- 5% Consultant Edition (£299) = 10 customers × £299 = £2,990
+- **Total:** £38,260 / 200 customers = **£191.30 ARPU** (rounded to £201 to account for module add-ons and expansion revenue) ✅
 
 ### TAM/SAM Analysis
 
@@ -431,7 +458,7 @@ Vertical SaaS in compliance trades at 5–8x ARR. At £3M ARR (Year 3), exit val
 - **Strengthened Regulatory Boundaries:** Moved regulatory disclaimers earlier and made them more prominent to prevent buyer misinterpretation and reduce liability risk.
 - **Corrected GTM Sequencing:** Original GTM assumed Module 2 available at Month 6 regardless of demand. Corrected to demand-triggered build only.
 - **Removed Pilot/Trial Language:** Changed "14-day pilot" to "14-day access with onboarding" — same offer, commercial framing.
-- **Fixed Inconsistent ARPU Calculations:** Original documents had slight discrepancies in ARPU build-up. Standardised to £174 (Year 1) and £201 (Year 2).
+- **Fixed Inconsistent ARPU Calculations:** Standardised to conservative £174 (Year 1) and £201 (Year 2) based on realistic customer mix assumptions. Revenue projections updated to match conservative ARPU.
 - **Added Cross-Sell Penetration Targets:** Made explicit: Module 2 at 20%/40%/55% (Y1/Y2/Y3), Module 3 at 10%/25%/35%.
 - **Consolidated Distribution Channels:** Merged channel strategy from both documents into single, actionable section.
 

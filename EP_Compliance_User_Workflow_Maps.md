@@ -791,7 +791,9 @@ This document defines complete step-by-step user journey maps for all workflows 
 
 ### Starting Point
 - **Trigger:** User clicks "Distribute Pack" on pack detail page
-- **Prerequisites:** Pack exists, User has Growth Plan or Consultant Edition
+- **Prerequisites:** Pack exists, User has appropriate plan:
+  - Core Plan: Can email Regulator Pack and Audit Pack
+  - Growth Plan/Consultant Edition: Can email all pack types + use shared links
 
 ### Step-by-Step Flow
 
