@@ -4030,12 +4030,17 @@ npm run test:e2e:journey
 STOP: Before proceeding to Phase 7, ask user:
 
 1. "Have you manually completed a FULL user journey (signup → upload → extract → pack)?"
-2. "Have you downloaded and verified pack PDFs are correct?"
-3. "Do all features work as expected?"
-4. "Do all automated tests pass?"
-5. "Are you ready to proceed to Phase 7 (Integration & Testing)?"
+2. "Have you tested CONSULTANT workflow (assign client → generate pack)?"
+3. "Have you tested REVIEW QUEUE workflow (review → confirm/edit/reject)?"
+4. "Have you tested EXCEL IMPORT workflow (upload → preview → import)?"
+5. "Have you tested SHARED LINK distribution (generate link → access pack)?"
+6. "Have you tested MODULE ACTIVATION (activate Module 2/3)?"
+7. "Have you downloaded and verified pack PDFs are correct?"
+8. "Do all features work as expected?"
+9. "Do all automated tests pass?"
+10. "Are you ready to proceed to Phase 7 (Integration & Testing)?"
 
-DO NOT proceed to Phase 7 until user explicitly confirms "YES" to all questions AND has manually verified complete user journey.
+DO NOT proceed to Phase 7 until user explicitly confirms "YES" to all questions AND has manually verified complete user journey including consultant, review queue, Excel import, shared links, and module activation.
 ```
 
 **If checkpoint fails:** Fix feature bugs, optimize performance. Do NOT proceed to Phase 7 until all features work AND user confirms.
