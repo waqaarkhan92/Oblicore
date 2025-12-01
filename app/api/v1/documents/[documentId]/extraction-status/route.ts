@@ -170,9 +170,10 @@ export async function GET(
     
     // Check the actual document status, not just the mapped API status
     const docStatus = document.extraction_status || 'PENDING';
-    
+
     if (docStatus === 'COMPLETED' || docStatus === 'EXTRACTED') {
       progress = 100;
+      console.log(`[Extraction-Status] Document is COMPLETED, setting progress to 100%`);
     } else if (docStatus === 'PENDING') {
       progress = 0;
     } else if (docStatus === 'PROCESSING') {

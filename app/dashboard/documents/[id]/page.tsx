@@ -53,9 +53,23 @@ export default function DocumentDetailPage({
     refetchInterval: (query) => {
       // Get fresh document data from cache
       const freshDoc = queryClient.getQueryData<Document>(['document', id]);
+      const extractionStatus = queryClient.getQueryData<any>(['extraction-status', id]);
+
+      // Keep polling if:
+      // 1. Document is not completed yet, OR
+      // 2. Document is completed but extraction-status doesn't show 100% yet
       if (freshDoc && freshDoc.extraction_status !== 'COMPLETED' && freshDoc.extraction_status !== 'PROCESSING_FAILED' && freshDoc.extraction_status !== 'FAILED') {
         return 5000; // Poll every 5 seconds
       }
+
+      // If document is completed but extraction-status doesn't show 100%, keep polling
+      if (freshDoc && freshDoc.extraction_status === 'COMPLETED') {
+        if (!extractionStatus || extractionStatus.progress !== 100) {
+          console.log('🔄 Document COMPLETED but extraction-status not at 100%, continuing to poll...');
+          return 3000; // Poll faster to catch the final state
+        }
+      }
+
       return false;
     },
     refetchOnMount: true,
