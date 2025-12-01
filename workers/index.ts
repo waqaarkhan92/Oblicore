@@ -4,6 +4,9 @@
  * Run this as a separate process: npm run worker
  */
 
+// IMPORTANT: Load environment variables FIRST before any other imports
+import './load-env';
+
 import { startAllWorkers, stopAllWorkers } from '../lib/workers/worker-manager';
 import { scheduleRecurringJobs } from '../lib/jobs/cron-scheduler';
 
