@@ -50,3 +50,7 @@ logs/
 tmp/
 temp/
 .cache/
+
+# Environment variables
+.env.local
+.env*.local
