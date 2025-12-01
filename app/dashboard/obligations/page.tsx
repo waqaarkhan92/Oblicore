@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Search, Filter, Link as LinkIcon } from 'lucide-react';
+import { ClipboardList, Search, Filter, Link as LinkIcon, Activity, FileText, BookOpen, Settings, Wrench, Clock, Calendar, FileCheck, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface Obligation {
@@ -16,6 +16,10 @@ interface Obligation {
   deadline_date: string | null;
   evidence_count?: number;
   document_id: string;
+  condition_reference?: string | null;
+  page_reference?: number | null;
+  frequency?: string | null;
+  confidence_score?: number;
 }
 
 interface ObligationsResponse {
@@ -185,90 +189,89 @@ export default function ObligationsPage() {
           </div>
         ) : (
           <>
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Obligation
-                  </th>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Category
-                  </th>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Status
-                  </th>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Deadline
-                  </th>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Evidence
-                  </th>
-                  <th className="text-left py-3 px-6 text-sm font-medium text-text-secondary">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {obligations.map((obligation) => {
-                  const effectiveStatus = getStatusFromDeadline(obligation.deadline_date, obligation.status);
-                  const daysUntil = getDaysUntilDeadline(obligation.deadline_date);
-                  
-                  return (
-                    <tr key={obligation.id} className="hover:bg-gray-50">
-                      <td className="py-4 px-6">
-                        <Link
-                          href={`/dashboard/obligations/${obligation.id}`}
-                          className="text-primary hover:text-primary-dark font-medium"
-                        >
-                          {obligation.obligation_title || obligation.original_text.substring(0, 60) + '...'}
-                        </Link>
-                      </td>
-                      <td className="py-4 px-6 text-sm text-text-secondary">
-                        {obligation.category.replace(/_/g, ' ')}
-                      </td>
-                      <td className="py-4 px-6">
-                        <StatusBadge status={effectiveStatus} />
-                      </td>
-                      <td className="py-4 px-6 text-sm text-text-secondary">
-                        {obligation.deadline_date ? (
-                          <div>
-                            <div>{new Date(obligation.deadline_date).toLocaleDateString()}</div>
-                            {daysUntil !== null && (
-                              <div className="text-xs text-text-tertiary">
-                                {daysUntil < 0
-                                  ? `${Math.abs(daysUntil)} days overdue`
-                                  : daysUntil === 0
-                                  ? 'Due today'
-                                  : `${daysUntil} days remaining`}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Obligation
+                    </th>
+                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
+                      Status
+                    </th>
+                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">
+                      Deadline
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {obligations.map((obligation, index) => {
+                    const effectiveStatus = getStatusFromDeadline(obligation.deadline_date, obligation.status);
+                    const daysUntil = getDaysUntilDeadline(obligation.deadline_date);
+                    
+                    return (
+                      <tr 
+                        key={obligation.id} 
+                        className={`transition-colors hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                      >
+                        <td className="py-4 px-6">
+                          <Link
+                            href={`/dashboard/obligations/${obligation.id}`}
+                            className="group block"
+                          >
+                            <div className="flex items-start gap-3">
+                              {/* Category Icon */}
+                              <CategoryIcon category={obligation.category} />
+                              
+                              {/* Title and Category */}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm text-gray-900 group-hover:text-primary transition-colors mb-1">
+                                  {obligation.obligation_title || obligation.original_text.substring(0, 80) + '...'}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {obligation.category.replace(/_/g, ' ')}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-text-tertiary">No deadline</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-text-secondary">
-                        {obligation.evidence_count || 0}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex gap-2">
-                          <Link href={`/dashboard/obligations/${obligation.id}`}>
-                            <Button variant="ghost" size="sm">
-                              View
-                            </Button>
+                            </div>
                           </Link>
-                          <Link href={`/dashboard/obligations/${obligation.id}/evidence`}>
-                            <Button variant="ghost" size="sm">
-                              <LinkIcon className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="py-4 px-6">
+                          <StatusBadge status={effectiveStatus} />
+                        </td>
+                        <td className="py-4 px-6">
+                          {obligation.deadline_date ? (
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 mb-0.5">
+                                {new Date(obligation.deadline_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </div>
+                              {daysUntil !== null && (
+                                <div className={`text-xs font-medium ${
+                                  daysUntil < 0 
+                                    ? 'text-red-600' 
+                                    : daysUntil === 0 
+                                    ? 'text-orange-600'
+                                    : daysUntil <= 7 
+                                    ? 'text-yellow-600'
+                                    : 'text-gray-500'
+                                }`}>
+                                  {daysUntil < 0
+                                    ? `${Math.abs(daysUntil)} days overdue`
+                                    : daysUntil === 0
+                                    ? 'Due today'
+                                    : `${daysUntil} days left`}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">No deadline</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
             {/* Pagination */}
             {hasMore && (
@@ -291,22 +294,91 @@ export default function ObligationsPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const config = {
-    PENDING: { label: 'Pending', className: 'bg-gray-100 text-gray-800' },
-    DUE_SOON: { label: 'Due Soon', className: 'bg-warning/20 text-warning' },
-    OVERDUE: { label: 'Overdue', className: 'bg-danger/20 text-danger' },
-    COMPLETED: { label: 'Completed', className: 'bg-success/20 text-success' },
-    NOT_APPLICABLE: { label: 'N/A', className: 'bg-gray-100 text-gray-600' },
-    ACTIVE: { label: 'Active', className: 'bg-primary/20 text-primary' },
+    PENDING: { 
+      label: 'Pending', 
+      className: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+      icon: Clock
+    },
+    DUE_SOON: { 
+      label: 'Due Soon', 
+      className: 'bg-orange-50 text-orange-700 border border-orange-200',
+      icon: AlertCircle
+    },
+    OVERDUE: { 
+      label: 'Overdue', 
+      className: 'bg-red-50 text-red-700 border border-red-200',
+      icon: XCircle
+    },
+    COMPLETED: { 
+      label: 'Completed', 
+      className: 'bg-green-50 text-green-700 border border-green-200',
+      icon: CheckCircle2
+    },
+    NOT_APPLICABLE: { 
+      label: 'N/A', 
+      className: 'bg-gray-50 text-gray-600 border border-gray-200',
+      icon: XCircle
+    },
+    ACTIVE: { 
+      label: 'Active', 
+      className: 'bg-blue-50 text-blue-700 border border-blue-200',
+      icon: CheckCircle2
+    },
   };
 
   const badgeConfig = config[status as keyof typeof config] || {
     label: status,
-    className: 'bg-gray-100 text-gray-800',
+    className: 'bg-gray-50 text-gray-800 border border-gray-200',
+    icon: Clock
   };
 
+  const Icon = badgeConfig.icon;
+
   return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-md ${badgeConfig.className}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${badgeConfig.className}`}>
+      <Icon className="w-3.5 h-3.5 mr-1.5" />
       {badgeConfig.label}
     </span>
+  );
+}
+
+function CategoryIcon({ category }: { category: string }) {
+  const categoryConfig: Record<string, { 
+    icon: any;
+    color: string;
+  }> = {
+    MONITORING: { 
+      icon: Activity,
+      color: 'text-blue-500'
+    },
+    REPORTING: { 
+      icon: FileText,
+      color: 'text-purple-500'
+    },
+    RECORD_KEEPING: { 
+      icon: BookOpen,
+      color: 'text-green-500'
+    },
+    OPERATIONAL: { 
+      icon: Settings,
+      color: 'text-orange-500'
+    },
+    MAINTENANCE: { 
+      icon: Wrench,
+      color: 'text-yellow-500'
+    },
+  };
+
+  const config = categoryConfig[category] || {
+    icon: FileText,
+    color: 'text-gray-400'
+  };
+
+  const Icon = config.icon;
+
+  return (
+    <div className={`${config.color} flex-shrink-0 mt-0.5`}>
+      <Icon className="w-4 h-4" />
+    </div>
   );
 }

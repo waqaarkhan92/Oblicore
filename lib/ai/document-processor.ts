@@ -374,23 +374,98 @@ export class DocumentProcessor {
     // Handle different response structures for Module 1, 2, and 3
     let obligations: any[] = [];
     
+    // Fallback title generation (rule-based)
+    const generateTitleFallback = (text: string, category: string, conditionRef: string | null): string => {
+      if (!text) return 'Untitled Obligation';
+
+      // Remove common legal prefixes to get to the action
+      let cleanText = text
+        .replace(/^The operator shall\s+/i, '')
+        .replace(/^The site operator shall\s+/i, '')
+        .replace(/^The permit holder shall\s+/i, '')
+        .replace(/^The licensee shall\s+/i, '')
+        .replace(/^The operator is only authorised to\s+/i, '')
+        .replace(/^The activities shall\s+/i, '')
+        .replace(/^Activities shall\s+/i, '')
+        .replace(/^Waste shall\s+/i, '')
+        .replace(/^Emissions shall\s+/i, '')
+        .replace(/^Records shall\s+/i, '')
+        .replace(/^Monitoring shall\s+/i, '')
+        .replace(/^For the following activities.*?\.\s*/i, '')
+        .trim();
+
+      // Extract key action verb and object (max 50 chars for readability)
+      let title = cleanText;
+
+      // Take up to first period, semicolon, or 50 characters
+      const sentences = cleanText.split(/[.;,]/);
+      if (sentences[0] && sentences[0].length > 0) {
+        title = sentences[0].trim();
+      }
+
+      // If still too long, intelligently truncate
+      if (title.length > 50) {
+        // Try to truncate at a word boundary
+        const words = title.substring(0, 47).split(' ');
+        words.pop(); // Remove last potentially partial word
+        title = words.join(' ') + '...';
+      }
+
+      // Capitalize first letter
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      return title;
+    };
+
+    // Helper function to generate a concise, meaningful title from obligation text using AI
+    const generateTitle = async (text: string, category: string, conditionRef: string | null): Promise<string> => {
+      if (!text) return 'Untitled Obligation';
+
+      try {
+        // Use GPT-3.5-turbo for cost-effective title generation
+        const response = await this.openAIClient.generateTitle(text, category);
+
+        // Validate the response
+        if (response && response.length > 0 && response.length <= 80) {
+          return response;
+        }
+
+        // Fallback to rule-based if AI fails
+        return generateTitleFallback(text, category, conditionRef);
+      } catch (error) {
+        console.warn('⚠️ AI title generation failed, using fallback:', error);
+        return generateTitleFallback(text, category, conditionRef);
+      }
+    };
+
     if (parsedResponse.obligations) {
       // Module 1 & 3: obligations array
-      obligations = parsedResponse.obligations.map((obl: any) => ({
-      condition_reference: obl.condition_reference || null,
-      title: obl.summary || obl.text?.substring(0, 100) || 'Untitled Obligation',
-      description: obl.text || obl.description || '',
-      category: obl.category || 'OPERATIONAL',
-      frequency: obl.frequency || null,
-      deadline_date: obl.deadline_date || null,
-      deadline_relative: obl.deadline_relative || null,
-      is_subjective: obl.is_subjective || false,
-      is_improvement: obl.is_improvement || false,
-      confidence_score: obl.confidence_score || obl.confidence || 0.7,
-      evidence_suggestions: obl.evidence_suggestions || obl.suggested_evidence_types || [],
-      condition_type: obl.condition_type || 'STANDARD',
-      page_reference: obl.page_reference || obl.page_number || null,
-    }));
+      obligations = await Promise.all(
+        parsedResponse.obligations.map(async (obl: any) => {
+          const obligationText = obl.text || obl.description || '';
+          const conditionRef = obl.condition_reference || null;
+          const category = obl.category || 'OPERATIONAL';
+
+          // Generate title using AI or fallback
+          const title = obl.summary || (await generateTitle(obligationText, category, conditionRef));
+
+          return {
+            condition_reference: conditionRef,
+            title,
+            description: obligationText,
+            category,
+            frequency: obl.frequency || null,
+            deadline_date: obl.deadline_date || null,
+            deadline_relative: obl.deadline_relative || null,
+            is_subjective: obl.is_subjective || false,
+            is_improvement: obl.is_improvement || false,
+            confidence_score: obl.confidence_score || obl.confidence || 0.7,
+            evidence_suggestions: obl.evidence_suggestions || obl.suggested_evidence_types || [],
+            condition_type: obl.condition_type || 'STANDARD',
+            page_reference: obl.page_reference || obl.page_number || null,
+          };
+        })
+      );
     } else if (parsedResponse.parameters) {
       // Module 2: parameters array (convert to obligations format)
       obligations = parsedResponse.parameters.map((param: any) => ({

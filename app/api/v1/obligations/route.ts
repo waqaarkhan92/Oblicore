@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Build query - RLS will automatically filter by user's site access
     let query = supabaseAdmin
       .from('obligations')
-      .select('id, document_id, site_id, obligation_title, obligation_description, category, frequency, deadline_date, status, review_status, is_subjective, confidence_score, created_at, updated_at')
+      .select('id, document_id, site_id, obligation_title, obligation_description, original_text, category, frequency, deadline_date, status, review_status, is_subjective, confidence_score, condition_reference, page_reference, created_at, updated_at')
       .is('deleted_at', null); // Only non-deleted obligations
 
     // Apply filters

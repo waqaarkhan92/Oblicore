@@ -37,7 +37,7 @@ export interface OpenAIRequestConfig {
     role: 'system' | 'user' | 'assistant';
     content: string;
   }>;
-  response_format?: { type: 'json_object' };
+  response_format?: { type: 'json_object' } | null;
   temperature?: number;
   max_tokens?: number;
   timeout?: number;
@@ -124,14 +124,24 @@ export class OpenAIClient {
           setTimeout(() => reject(new Error('Request timeout')), timeout);
         });
 
+        const completionConfig: any = {
+          model: config.model,
+          messages: config.messages,
+          temperature: config.temperature ?? 0.2,
+          max_tokens: config.max_tokens || 4000,
+        };
+
+        // Only add response_format if it's explicitly provided and not null
+        if (config.response_format !== undefined && config.response_format !== null) {
+          completionConfig.response_format = config.response_format;
+        } else if (config.response_format === undefined) {
+          // Default to JSON format for backward compatibility (only if not explicitly set to null)
+          completionConfig.response_format = { type: 'json_object' };
+        }
+        // If response_format === null, don't add it (plain text response)
+
         const response = await Promise.race([
-          client.chat.completions.create({
-            model: config.model,
-            messages: config.messages,
-            response_format: config.response_format || { type: 'json_object' },
-            temperature: config.temperature ?? 0.2,
-            max_tokens: config.max_tokens || 4000,
-          }),
+          client.chat.completions.create(completionConfig),
           timeoutPromise,
         ]) as OpenAI.Chat.Completions.ChatCompletion;
 
@@ -601,6 +611,50 @@ export class OpenAIClient {
       max_tokens: template.maxTokens,
       timeout: TIMEOUT_CONFIG.standard,
     });
+  }
+
+  /**
+   * Generate a concise, meaningful title for an obligation using GPT-3.5-turbo
+   * This is a cost-effective method for title generation
+   */
+  async generateTitle(obligationText: string, category: string): Promise<string> {
+    if (!obligationText) return 'Untitled Obligation';
+
+    try {
+      const response = await this.callWithRetry({
+        model: 'gpt-4o-mini', // Use cheaper model for title generation
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert at creating concise, actionable titles for environmental compliance obligations. Generate a clear, professional title (maximum 60 characters) that captures the core action required. Do not include legal boilerplate like "The operator shall". Focus on the key action and subject.',
+          },
+          {
+            role: 'user',
+            content: `Category: ${category}\n\nObligation text:\n${obligationText.substring(0, 500)}\n\nGenerate a concise title (max 60 characters) that captures the core action required. Return ONLY the title text, no quotes or extra formatting.`,
+          },
+        ],
+        response_format: null, // Plain text response, not JSON
+        temperature: 0.3,
+        max_tokens: 50, // Short response for title only
+        timeout: 10000, // 10 second timeout for quick response
+      });
+
+      // Clean up the response
+      let title = response.content.trim();
+
+      // Remove quotes if present
+      title = title.replace(/^["']|["']$/g, '');
+
+      // Ensure it's not too long
+      if (title.length > 80) {
+        title = title.substring(0, 77) + '...';
+      }
+
+      return title;
+    } catch (error: any) {
+      console.warn('⚠️ AI title generation failed:', error.message);
+      throw error; // Let the caller handle fallback
+    }
   }
 }
 

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
-import { ClipboardList, Link as LinkIcon, Unlink, Edit, X, Download } from 'lucide-react';
+import { ClipboardList, Link as LinkIcon, Unlink, Edit, X, Download, FileText, BookOpen, Calendar, Clock, Activity, Settings, Wrench, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -21,6 +21,9 @@ interface Obligation {
   frequency: string | null;
   document_id: string;
   site_id: string;
+  condition_reference?: string | null;
+  page_reference?: number | null;
+  evidence_count?: number;
 }
 
 interface Evidence {
@@ -171,57 +174,127 @@ export default function ObligationDetailPage({
 
       {/* Obligation Information */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-text-primary mb-4">Obligation Information</h2>
-        <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-text-primary mb-6">Obligation Information</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Status */}
           <div>
-            <p className="text-sm font-medium text-text-secondary mb-1">Status</p>
+            <p className="text-sm font-medium text-text-secondary mb-2">Status</p>
             <StatusBadge status={effectiveStatus} />
           </div>
+
+          {/* Category */}
           <div>
-            <p className="text-sm font-medium text-text-secondary mb-1">Confidence Score</p>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-gray-200 rounded-full h-2">
+            <p className="text-sm font-medium text-text-secondary mb-2">Category</p>
+            <CategoryBadge category={obligation.category} />
+          </div>
+
+          {/* Confidence Score */}
+          <div>
+            <p className="text-sm font-medium text-text-secondary mb-2">Confidence Score</p>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-gray-200 rounded-full h-2.5">
                 <div
-                  className="bg-primary h-2 rounded-full"
+                  className="bg-primary h-2.5 rounded-full transition-all"
                   style={{ width: `${obligation.confidence_score * 100}%` }}
                 />
               </div>
-              <span className="text-sm text-text-secondary">
+              <span className="text-sm font-medium text-text-primary min-w-[3rem]">
                 {(obligation.confidence_score * 100).toFixed(0)}%
               </span>
             </div>
           </div>
+
+          {/* Deadline */}
           {obligation.deadline_date && (
             <div>
-              <p className="text-sm font-medium text-text-secondary mb-1">Deadline</p>
-              <p className="text-text-primary">
-                {new Date(obligation.deadline_date).toLocaleDateString()}
-                {daysUntil !== null && (
-                  <span className="ml-2 text-sm text-text-secondary">
-                    ({daysUntil < 0
-                      ? `${Math.abs(daysUntil)} days overdue`
-                      : daysUntil === 0
-                      ? 'Due today'
-                      : `${daysUntil} days remaining`})
-                  </span>
-                )}
-              </p>
+              <p className="text-sm font-medium text-text-secondary mb-2">Deadline</p>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <div>
+                  <p className="text-text-primary font-medium">
+                    {new Date(obligation.deadline_date).toLocaleDateString('en-US', { 
+                      weekday: 'short',
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                  {daysUntil !== null && (
+                    <p className={`text-sm font-medium ${
+                      daysUntil < 0 
+                        ? 'text-red-600' 
+                        : daysUntil === 0 
+                        ? 'text-orange-600'
+                        : daysUntil <= 7 
+                        ? 'text-yellow-600'
+                        : 'text-gray-500'
+                    }`}>
+                      {daysUntil < 0
+                        ? `${Math.abs(daysUntil)} days overdue`
+                        : daysUntil === 0
+                        ? 'Due today'
+                        : `${daysUntil} days remaining`}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
+
+          {/* Frequency */}
           {obligation.frequency && (
             <div>
-              <p className="text-sm font-medium text-text-secondary mb-1">Frequency</p>
-              <p className="text-text-primary">{obligation.frequency}</p>
+              <p className="text-sm font-medium text-text-secondary mb-2">Frequency</p>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <p className="text-text-primary font-medium">
+                  {obligation.frequency.replace(/_/g, ' ')}
+                </p>
+              </div>
             </div>
           )}
+
+          {/* Condition Reference */}
+          {obligation.condition_reference && (
+            <div>
+              <p className="text-sm font-medium text-text-secondary mb-2">Condition Reference</p>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-500" />
+                <p className="text-text-primary font-medium">
+                  Clause {obligation.condition_reference}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Page Reference */}
+          {obligation.page_reference && (
+            <div>
+              <p className="text-sm font-medium text-text-secondary mb-2">Page Reference</p>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-gray-500" />
+                <p className="text-text-primary font-medium">
+                  Page {obligation.page_reference}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Evidence Count */}
+          <div>
+            <p className="text-sm font-medium text-text-secondary mb-2">Linked Evidence</p>
+            <p className="text-text-primary font-medium">
+              {obligation.evidence_count || evidence?.length || 0} {obligation.evidence_count === 1 || evidence?.length === 1 ? 'item' : 'items'}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Obligation Text */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-text-primary mb-4">Obligation Text</h2>
-        <div className="prose max-w-none">
-          <p className="text-text-primary whitespace-pre-wrap">
+        <h2 className="text-xl font-semibold text-text-primary mb-4">Full Obligation Text</h2>
+        <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+          <p className="text-text-primary whitespace-pre-wrap leading-relaxed">
             {obligation.obligation_description || obligation.original_text}
           </p>
         </div>
@@ -314,22 +387,113 @@ export default function ObligationDetailPage({
 
 function StatusBadge({ status }: { status: string }) {
   const config = {
-    PENDING: { label: 'Pending', className: 'bg-gray-100 text-gray-800' },
-    DUE_SOON: { label: 'Due Soon', className: 'bg-warning/20 text-warning' },
-    OVERDUE: { label: 'Overdue', className: 'bg-danger/20 text-danger' },
-    COMPLETED: { label: 'Completed', className: 'bg-success/20 text-success' },
-    NOT_APPLICABLE: { label: 'Not Applicable', className: 'bg-gray-100 text-gray-600' },
-    ACTIVE: { label: 'Active', className: 'bg-primary/20 text-primary' },
+    PENDING: { 
+      label: 'Pending', 
+      className: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+      icon: Clock
+    },
+    DUE_SOON: { 
+      label: 'Due Soon', 
+      className: 'bg-orange-50 text-orange-700 border border-orange-200',
+      icon: AlertCircle
+    },
+    OVERDUE: { 
+      label: 'Overdue', 
+      className: 'bg-red-50 text-red-700 border border-red-200',
+      icon: XCircle
+    },
+    COMPLETED: { 
+      label: 'Completed', 
+      className: 'bg-green-50 text-green-700 border border-green-200',
+      icon: CheckCircle2
+    },
+    NOT_APPLICABLE: { 
+      label: 'Not Applicable', 
+      className: 'bg-gray-50 text-gray-600 border border-gray-200',
+      icon: XCircle
+    },
+    ACTIVE: { 
+      label: 'Active', 
+      className: 'bg-blue-50 text-blue-700 border border-blue-200',
+      icon: CheckCircle2
+    },
   };
 
   const badgeConfig = config[status as keyof typeof config] || {
     label: status,
-    className: 'bg-gray-100 text-gray-800',
+    className: 'bg-gray-50 text-gray-800 border border-gray-200',
+    icon: Clock
   };
 
+  const Icon = badgeConfig.icon;
+
   return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-md ${badgeConfig.className}`}>
+    <span className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium ${badgeConfig.className}`}>
+      <Icon className="w-4 h-4 mr-1.5" />
       {badgeConfig.label}
+    </span>
+  );
+}
+
+function CategoryBadge({ category }: { category: string }) {
+  const categoryConfig: Record<string, { 
+    label: string; 
+    bg: string; 
+    text: string; 
+    border: string;
+    icon: any;
+  }> = {
+    MONITORING: { 
+      label: 'Monitoring', 
+      bg: 'bg-blue-50', 
+      text: 'text-blue-700', 
+      border: 'border-blue-200',
+      icon: Activity
+    },
+    REPORTING: { 
+      label: 'Reporting', 
+      bg: 'bg-purple-50', 
+      text: 'text-purple-700', 
+      border: 'border-purple-200',
+      icon: FileText
+    },
+    RECORD_KEEPING: { 
+      label: 'Record Keeping', 
+      bg: 'bg-green-50', 
+      text: 'text-green-700', 
+      border: 'border-green-200',
+      icon: BookOpen
+    },
+    OPERATIONAL: { 
+      label: 'Operational', 
+      bg: 'bg-orange-50', 
+      text: 'text-orange-700', 
+      border: 'border-orange-200',
+      icon: Settings
+    },
+    MAINTENANCE: { 
+      label: 'Maintenance', 
+      bg: 'bg-yellow-50', 
+      text: 'text-yellow-700', 
+      border: 'border-yellow-200',
+      icon: Wrench
+    },
+  };
+
+  const config = categoryConfig[category] || {
+    label: category.replace(/_/g, ' '),
+    bg: 'bg-gray-50',
+    text: 'text-gray-700',
+    border: 'border-gray-200',
+    icon: FileText
+  };
+
+  const Icon = config.icon;
+
+  return (
+    <span className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium ${config.bg} ${config.text} border ${config.border}`}>
+      <Icon className="w-4 h-4 mr-1.5" />
+      {config.label}
     </span>
   );
 }

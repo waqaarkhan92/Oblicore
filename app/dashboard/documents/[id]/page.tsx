@@ -429,6 +429,13 @@ export default function DocumentDetailPage({
               />
             </div>
           </div>
+          {(document.extraction_status === 'PENDING' || document.extraction_status === 'PROCESSING') && (
+            <div className="mt-3 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+              <p className="text-sm text-warning">
+                ⚠️ Please do not refresh this page while extraction is in progress. The page will update automatically when complete.
+              </p>
+            </div>
+          )}
           {extractionStatus && extractionStatus.obligation_count !== undefined && extractionStatus.obligation_count > 0 && (
             <p className="text-sm text-text-secondary">
               ✅ {extractionStatus.obligation_count} obligation{extractionStatus.obligation_count !== 1 ? 's' : ''} extracted so far...
@@ -444,9 +451,6 @@ export default function DocumentDetailPage({
               ⚠️ Error loading progress: {extractionStatusError.message}
             </p>
           )}
-          <p className="text-xs text-text-tertiary">
-            DEBUG: extraction_status={document.extraction_status}, progress={extractionStatus?.progress ?? 'null'}, obligation_count={extractionStatus?.obligation_count ?? 'null'}, obligations.length={obligations?.length ?? 0}
-          </p>
         </div>
       </div>
 
@@ -458,41 +462,6 @@ export default function DocumentDetailPage({
             <span className="ml-2 text-sm font-normal text-text-secondary">({obligations.length})</span>
           )}
         </h2>
-        <div className="text-xs text-text-secondary mb-2 space-y-1 p-2 bg-gray-50 rounded">
-          <p>
-            <strong>DEBUG:</strong> Loading={obligationsLoading ? 'true' : 'false'}, Count={obligations?.length || 0}, 
-            Status={document.extraction_status}, Error={obligationsError?.message || 'none'}
-          </p>
-          {obligations && obligations.length > 0 && (
-            <p className="text-green-600 font-semibold">
-              ✅ OBLIGATIONS DATA EXISTS: {obligations.length} items
-            </p>
-          )}
-          {!obligationsLoading && !obligationsError && (!obligations || obligations.length === 0) && document.extraction_status === 'COMPLETED' && (
-            <p className="text-red-600 font-semibold">
-              ⚠️ NO OBLIGATIONS DATA - Query returned empty array but document is COMPLETED
-            </p>
-          )}
-          {obligationsError && (
-            <p className="text-red-600 font-semibold">
-              ❌ ERROR: {obligationsError.message}
-            </p>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              console.log('🔄 Manually refreshing obligations...');
-              queryClient.invalidateQueries({ queryKey: ['document-obligations', id] });
-              queryClient.invalidateQueries({ queryKey: ['document', id] });
-              queryClient.invalidateQueries({ queryKey: ['extraction-status', id] });
-            }}
-            className="mt-2"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Force Refresh
-          </Button>
-        </div>
         {obligationsLoading ? (
           <div className="text-center py-8 text-text-secondary">Loading obligations...</div>
         ) : obligationsError ? (
