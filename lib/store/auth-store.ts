@@ -33,7 +33,12 @@ interface AuthState {
   setTokens: (tokens: { access_token: string; refresh_token: string }) => void;
 }
 
-export const useAuthStore = create<AuthState>()(
+interface AuthStateWithHydration extends AuthState {
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
+}
+
+export const useAuthStore = create<AuthStateWithHydration>()(
   persist(
     (set) => ({
       user: null,
@@ -42,7 +47,17 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       accessToken: null,
       refreshToken: null,
+      _hasHydrated: false,
+      setHasHydrated: (state) => {
+        set({ _hasHydrated: state });
+      },
       login: (user, company, roles, tokens) => {
+        // Set cookie for server-side access (7 days expiry)
+        if (typeof document !== 'undefined') {
+          const maxAge = 7 * 24 * 60 * 60; // 7 days
+          const isSecure = window.location.protocol === 'https:';
+          document.cookie = `access_token=${tokens.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+        }
         set({
           user,
           company,
@@ -53,6 +68,10 @@ export const useAuthStore = create<AuthState>()(
         });
       },
       logout: () => {
+        // Clear cookie
+        if (typeof document !== 'undefined') {
+          document.cookie = 'access_token=; path=/; max-age=0';
+        }
         set({
           user: null,
           company: null,
@@ -68,6 +87,12 @@ export const useAuthStore = create<AuthState>()(
         }));
       },
       setTokens: (tokens) => {
+        // Update cookie when tokens are refreshed (7 days expiry)
+        if (typeof document !== 'undefined') {
+          const maxAge = 7 * 24 * 60 * 60; // 7 days
+          const isSecure = window.location.protocol === 'https:';
+          document.cookie = `access_token=${tokens.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+        }
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
@@ -76,6 +101,18 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      onRehydrateStorage: () => (state) => {
+        // Mark as hydrated when rehydration completes
+        if (state) {
+          state.setHasHydrated(true);
+          // Also set cookie from stored token if available
+          if (state.accessToken && typeof document !== 'undefined') {
+            const maxAge = 7 * 24 * 60 * 60; // 7 days
+            const isSecure = window.location.protocol === 'https:';
+            document.cookie = `access_token=${state.accessToken}; path=/; max-age=${maxAge}; SameSite=Lax${isSecure ? '; Secure' : ''}`;
+          }
+        }
+      },
     }
   )
 );

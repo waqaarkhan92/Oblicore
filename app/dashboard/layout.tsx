@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth-store';
 import { Sidebar } from '@/components/dashboard/sidebar';
@@ -12,15 +12,67 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
+  const [isChecking, setIsChecking] = useState(true);
 
+  // Check localStorage directly on mount to avoid hydration delay
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('auth-storage');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const hasAuth = parsed?.state?.user && parsed?.state?.accessToken;
+          if (hasAuth) {
+            // Auth exists in localStorage - wait for Zustand to hydrate, don't redirect
+            setIsChecking(false);
+            return;
+          }
+        }
+        // No auth in localStorage - wait a bit for Zustand to hydrate, then check
+        // This prevents redirecting before Zustand finishes loading
+        const timer = setTimeout(() => {
+          if (!isAuthenticated && !user) {
+            router.push('/login');
+          } else {
+            setIsChecking(false);
+          }
+        }, 200);
+        return () => clearTimeout(timer);
+      } catch (e) {
+        // localStorage parse error - wait for Zustand
+        const timer = setTimeout(() => {
+          if (!isAuthenticated && !user) {
+            router.push('/login');
+          } else {
+            setIsChecking(false);
+          }
+        }, 200);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isAuthenticated, router]);
+  }, []); // Only run on mount
 
-  if (!isAuthenticated) {
+  // Also check Zustand state once hydrated
+  useEffect(() => {
+    if (_hasHydrated && !isAuthenticated && !user) {
+      router.push('/login');
+    } else if (_hasHydrated) {
+      setIsChecking(false);
+    }
+  }, [_hasHydrated, isAuthenticated, user, router]);
+
+  // Show loading state while checking
+  if (isChecking) {
+    return (
+      <div className="flex h-screen bg-background-secondary items-center justify-center">
+        <div className="text-text-secondary">Loading...</div>
+      </div>
+    );
+  }
+
+  // Only redirect if definitely not authenticated
+  if (!isAuthenticated && !user) {
     return null; // Will redirect
   }
 

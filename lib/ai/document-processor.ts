@@ -142,8 +142,11 @@ export class DocumentProcessor {
       options.documentType
     );
 
+    console.log(`📋 Rule library matches: ${ruleLibraryMatches.length} (top score: ${ruleLibraryMatches[0]?.match_score || 0})`);
+    
     // If we have high-confidence matches (≥90%), use them
     if (ruleLibraryMatches.length > 0 && ruleLibraryMatches[0].match_score >= 0.9) {
+      console.log(`✅ Using rule library matches (${ruleLibraryMatches.length} obligations)`);
       // Convert rule library matches to obligations
       const obligations = ruleLibraryMatches.map((match) => ({
         condition_reference: match.pattern_id,
@@ -181,7 +184,11 @@ export class DocumentProcessor {
     // Step 2: Use LLM extraction (fallback when rule library doesn't match)
     // Support all three document types: ENVIRONMENTAL_PERMIT, TRADE_EFFLUENT_CONSENT, MCPD_REGISTRATION
     const documentType = (options.documentType as any) || 'ENVIRONMENTAL_PERMIT';
-    const llmResponse = await this.openAIClient.extractObligations(
+    console.log(`🤖 Rule library insufficient, falling back to LLM extraction for ${documentType}...`);
+    console.log(`🤖 Calling LLM for ${documentType} extraction (text length: ${documentText.length} chars)...`);
+    let llmResponse;
+    try {
+      llmResponse = await this.openAIClient.extractObligations(
       documentText,
       documentType,
       {
@@ -193,13 +200,160 @@ export class DocumentProcessor {
         registrationType: (options as any).registrationType,
       }
     );
+      console.log(`🤖 LLM response received: ${llmResponse.content.length} chars`);
+    } catch (error: any) {
+      console.error(`❌ LLM extraction failed:`, error.message);
+      console.error(`Error stack:`, error.stack);
+      throw new Error(`LLM extraction failed: ${error.message}`);
+    }
 
-    // Parse JSON response
+    // Parse JSON response - handle malformed JSON
     let parsedResponse: any;
     try {
-      parsedResponse = JSON.parse(llmResponse.content);
-    } catch (error) {
-      throw new Error(`Failed to parse LLM response: ${error}`);
+      // Clean the response - remove markdown code blocks if present
+      let cleanedContent = llmResponse.content.trim();
+      
+      // Remove markdown code blocks (```json ... ```)
+      if (cleanedContent.startsWith('```')) {
+        cleanedContent = cleanedContent.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '');
+      }
+      
+      // Try to fix common JSON issues
+      // If JSON is truncated, try to find the last complete object/array
+      let jsonContent = cleanedContent;
+      
+      // If parsing fails, try to extract JSON from the response
+      try {
+        parsedResponse = JSON.parse(jsonContent);
+      } catch (parseError: any) {
+        console.warn('⚠️ LLM JSON parsing failed, attempting recovery:', parseError.message);
+        console.warn('Response length:', jsonContent.length);
+        
+        // Try to extract partial obligations from truncated JSON
+        // Find the obligations array start
+        const obligationsStart = jsonContent.indexOf('"obligations"');
+        if (obligationsStart === -1) {
+          throw new Error(`Failed to parse LLM response: ${parseError.message}. No obligations array found.`);
+        }
+        
+        // Find the opening bracket of the obligations array
+        const arrayStart = jsonContent.indexOf('[', obligationsStart);
+        if (arrayStart === -1) {
+          throw new Error(`Failed to parse LLM response: ${parseError.message}. No obligations array bracket found.`);
+        }
+        
+        // Extract obligations by finding complete objects
+        const obligations: any[] = [];
+        let depth = 0;
+        let inString = false;
+        let escapeNext = false;
+        let currentObj = '';
+        let braceDepth = 0;
+        
+        for (let i = arrayStart + 1; i < jsonContent.length; i++) {
+          const char = jsonContent[i];
+          
+          if (escapeNext) {
+            currentObj += char;
+            escapeNext = false;
+            continue;
+          }
+          
+          if (char === '\\') {
+            currentObj += char;
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+            currentObj += char;
+            continue;
+          }
+          
+          if (inString) {
+            currentObj += char;
+            continue;
+          }
+          
+          if (char === '{') {
+            braceDepth++;
+            currentObj += char;
+            continue;
+          }
+          
+          if (char === '}') {
+            braceDepth--;
+            currentObj += char;
+            if (braceDepth === 0) {
+              // Complete object found
+              try {
+                const obj = JSON.parse(currentObj);
+                obligations.push(obj);
+                currentObj = '';
+              } catch (e) {
+                // Skip malformed object
+                console.warn('Skipping malformed obligation object');
+                currentObj = '';
+              }
+            }
+            continue;
+          }
+          
+          if (char === ']' && braceDepth === 0) {
+            // End of array
+            break;
+          }
+          
+          if (char === ',' && braceDepth === 0 && currentObj.trim()) {
+            // End of object (comma separator)
+            try {
+              const obj = JSON.parse(currentObj.trim());
+              obligations.push(obj);
+              currentObj = '';
+            } catch (e) {
+              // Skip malformed object
+              currentObj = '';
+            }
+            continue;
+          }
+          
+          if (braceDepth > 0) {
+            currentObj += char;
+          } else if (char !== ' ' && char !== '\n' && char !== '\t' && char !== ',') {
+            currentObj += char;
+          }
+        }
+        
+        // Try to parse any remaining object
+        if (currentObj.trim() && braceDepth === 0) {
+          try {
+            const obj = JSON.parse(currentObj.trim());
+            obligations.push(obj);
+          } catch (e) {
+            // Skip if malformed
+          }
+        }
+        
+        if (obligations.length > 0) {
+          console.log(`✅ Recovered ${obligations.length} obligations from truncated JSON`);
+          parsedResponse = {
+            obligations: obligations,
+            metadata: {
+              extraction_confidence: 0.8, // Lower confidence for partial extraction
+              permit_reference: null,
+              regulator: null,
+            }
+          };
+        } else {
+          throw new Error(`Failed to parse LLM response: ${parseError.message}. Could not extract any obligations.`);
+        }
+      }
+    } catch (error: any) {
+      console.error('LLM response parsing error:', error);
+      console.error('Response content length:', llmResponse.content.length);
+      console.error('Response preview:', llmResponse.content.substring(0, 1000));
+      throw new Error(`Failed to parse LLM response: ${error.message}`);
     }
 
     // Validate response structure (different structures for different modules)
@@ -207,7 +361,10 @@ export class DocumentProcessor {
     const hasParameters = parsedResponse.parameters && Array.isArray(parsedResponse.parameters);
     const hasGenerators = parsedResponse.generators && Array.isArray(parsedResponse.generators);
     
+    console.log(`📋 Parsed response: obligations=${hasObligations ? parsedResponse.obligations.length : 0}, parameters=${hasParameters ? parsedResponse.parameters.length : 0}, generators=${hasGenerators ? parsedResponse.generators.length : 0}`);
+    
     if (!hasObligations && !hasParameters && !hasGenerators) {
+      console.error('❌ Invalid LLM response structure:', Object.keys(parsedResponse));
       throw new Error('Invalid LLM response: missing obligations, parameters, or generators array');
     }
 
@@ -332,13 +489,14 @@ export class DocumentProcessor {
       metadata.extraction_confidence = parsedResponse.extraction_metadata?.extraction_confidence || 0.7;
     }
 
+    console.log(`✅ LLM extraction complete: ${obligations.length} obligations transformed`);
+
     return {
       obligations,
       metadata,
       ruleLibraryMatches: [],
       usedLLM: true,
       extractionTimeMs: Date.now() - startTime,
-      usage: llmResponse.usage, // Include token usage for cost tracking
     };
   }
 

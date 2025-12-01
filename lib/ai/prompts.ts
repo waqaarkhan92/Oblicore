@@ -124,7 +124,7 @@ DOCUMENT TEXT:
 
 REGULATOR: {regulator}
 PERMIT REFERENCE: {permit_reference}`,
-      maxTokens: 4000,
+      maxTokens: 16000, // Increased for large documents with many obligations
       temperature: 0.2,
     },
 

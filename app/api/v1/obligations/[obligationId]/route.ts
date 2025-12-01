@@ -13,7 +13,7 @@ import { recordCorrection } from '@/lib/ai/correction-tracking';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { obligationId: string } }
+  { params }: { params: Promise<{ obligationId: string }> }
 ) {
   const requestId = getRequestId(request);
 
@@ -25,16 +25,21 @@ export async function GET(
     }
     const { user } = authResult;
 
-    const { obligationId } = params;
+    const { obligationId } = await params;
+    
+    console.log(`[Obligations API] GET obligation: ${obligationId}`);
+    console.log(`[Obligations API] obligationId type: ${typeof obligationId}`);
+    console.log(`[Obligations API] obligationId value:`, obligationId);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(obligationId)) {
+    if (!obligationId || !uuidRegex.test(obligationId)) {
+      console.error(`[Obligations API] Invalid obligation ID:`, obligationId);
       return errorResponse(
         ErrorCodes.VALIDATION_ERROR,
         'Invalid obligation ID format',
         400,
-        { obligation_id: 'Must be a valid UUID' },
+        { obligation_id: 'Must be a valid UUID', received: obligationId },
         { request_id: requestId }
       );
     }
@@ -130,7 +135,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { obligationId: string } }
+  { params }: { params: Promise<{ obligationId: string }> }
 ) {
   const requestId = getRequestId(request);
 
@@ -143,7 +148,7 @@ export async function PUT(
     }
     const { user } = authResult;
 
-    const { obligationId } = params;
+    const { obligationId } = await params;
 
     // Parse request body - handle potential JSON parsing errors
     let body: any;

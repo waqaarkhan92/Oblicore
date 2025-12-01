@@ -71,9 +71,9 @@ export async function POST(
       const { data: activeJob } = await supabaseAdmin
         .from('background_jobs')
         .select('id, status')
-        .eq('entity_id', documentId)
         .eq('job_type', 'DOCUMENT_EXTRACTION')
-        .in('status', ['PENDING', 'PROCESSING'])
+        .eq('payload->>document_id', documentId)
+        .in('status', ['PENDING', 'RUNNING'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -133,11 +133,11 @@ export async function POST(
     }
 
     // Update document status to PROCESSING
+    // Note: extraction_started_at column doesn't exist in documents table
     await supabaseAdmin
       .from('documents')
       .update({
         extraction_status: 'PROCESSING',
-        extraction_started_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', documentId);
@@ -147,17 +147,17 @@ export async function POST(
       .from('background_jobs')
       .insert({
         job_type: 'DOCUMENT_EXTRACTION',
-        entity_id: documentId,
-        entity_type: 'documents',
         status: 'PENDING',
-        priority: 'NORMAL',
-        job_data: {
+        priority: 5, // Normal priority (integer, not string)
+        payload: {
           document_id: documentId,
           company_id: companyId,
           site_id: document.site_id,
           module_id: moduleId,
           file_path: document.storage_path,
           document_type: document.document_type,
+          regulator: null, // Will be extracted from document if available
+          permit_reference: null, // Will be extracted from document if available
           force_reprocess: forceReprocess,
         },
         created_by: user.id,
@@ -203,7 +203,7 @@ export async function POST(
     // Queue the job in BullMQ
     const queue = getQueue(QUEUE_NAMES.DOCUMENT_PROCESSING);
     const job = await queue.add(
-      'document-extraction',
+      'DOCUMENT_EXTRACTION', // Must match worker job.name check
       {
         document_id: documentId,
         company_id: companyId,

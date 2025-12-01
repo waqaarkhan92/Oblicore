@@ -27,22 +27,35 @@ export interface DocumentProcessingJobData {
 export async function processDocumentJob(job: Job<DocumentProcessingJobData>): Promise<void> {
   const { document_id, company_id, site_id, module_id, file_path, document_type, regulator, permit_reference } = job.data;
 
+  console.log(`📋 Starting extraction for document ${document_id}`);
+  console.log(`📋 Job data:`, JSON.stringify({ document_id, company_id, site_id, module_id, file_path, document_type, regulator, permit_reference }, null, 2));
+  
   try {
     // Update job status in database
     await updateJobStatus(document_id, 'PROCESSING', null);
     
     // Update document status to PROCESSING
-    await supabaseAdmin
+    console.log(`📝 Updating document ${document_id} status to PROCESSING`);
+    const { error: statusError } = await supabaseAdmin
       .from('documents')
       .update({
         extraction_status: 'PROCESSING',
       })
       .eq('id', document_id);
+    
+    if (statusError) {
+      console.error(`❌ Failed to update status to PROCESSING:`, statusError);
+      throw new Error(`Failed to update document status: ${statusError.message}`);
+    }
+    console.log(`✅ Document ${document_id} status updated to PROCESSING`);
 
     // Step 1: Download file from Supabase Storage
+    console.log(`📥 Downloading file: ${file_path}`);
     const fileBuffer = await downloadFile(file_path);
+    console.log(`✅ File downloaded: ${fileBuffer.length} bytes`);
 
     // Step 2: Process document (OCR, text extraction)
+    console.log(`🔍 Processing document (OCR/text extraction)...`);
     const documentProcessor = getDocumentProcessor();
     const processingResult = await documentProcessor.processDocument(
       fileBuffer,
@@ -55,17 +68,35 @@ export async function processDocumentJob(job: Job<DocumentProcessingJobData>): P
     );
 
     // Step 3: Update document with extracted text
-    await supabaseAdmin
+    // Note: 'EXTRACTING' is not in the database CHECK constraint, use 'PROCESSING' instead
+    console.log(`📝 Updating document ${document_id} with extracted text (${processingResult.extractedText.length} chars)`);
+    const { error: extractError } = await supabaseAdmin
       .from('documents')
       .update({
         extracted_text: processingResult.extractedText,
         file_size_bytes: processingResult.fileSizeBytes,
-        extraction_status: 'EXTRACTING',
+        extraction_status: 'PROCESSING', // Keep as PROCESSING since EXTRACTING is not in DB constraint
       })
       .eq('id', document_id);
+    
+    if (extractError) {
+      console.error(`❌ Failed to update document with extracted text:`, extractError);
+      throw new Error(`Failed to update document: ${extractError.message}`);
+    }
+    console.log(`✅ Document ${document_id} status updated to EXTRACTING`);
 
     // Step 4: Extract obligations (rule library first, then LLM)
-    const extractionResult = await documentProcessor.extractObligations(
+    console.log(`📋 Extracting obligations...`);
+    console.log(`📄 Text length: ${processingResult.extractedText.length} chars`);
+    console.log(`📄 Text preview: ${processingResult.extractedText.substring(0, 200)}...`);
+    
+    if (!processingResult.extractedText || processingResult.extractedText.trim().length < 50) {
+      throw new Error(`Extracted text is too short (${processingResult.extractedText.length} chars). Document may be corrupted or require OCR.`);
+    }
+    
+    let extractionResult;
+    try {
+      extractionResult = await documentProcessor.extractObligations(
       processingResult.extractedText,
       {
         moduleTypes: [module_id],
@@ -75,17 +106,49 @@ export async function processDocumentJob(job: Job<DocumentProcessingJobData>): P
         fileSizeBytes: processingResult.fileSizeBytes,
         permitReference: permit_reference,
       }
-    );
+      );
+      console.log(`📋 Extraction result: ${extractionResult.obligations.length} obligations, usedLLM: ${extractionResult.usedLLM}, ruleMatches: ${extractionResult.ruleLibraryMatches.length}`);
+      
+      if (extractionResult.obligations.length === 0) {
+        console.warn(`⚠️ WARNING: Extraction returned 0 obligations for document ${document_id}`);
+        console.warn(`⚠️ This might indicate an issue with the extraction process`);
+        console.warn(`⚠️ Text length: ${processingResult.extractedText.length}, usedLLM: ${extractionResult.usedLLM}`);
+      }
+    } catch (extractionError: any) {
+      console.error(`❌ Extraction failed:`, extractionError.message);
+      console.error(`❌ Extraction error stack:`, extractionError.stack);
+      throw extractionError;
+    }
 
     // Step 5: Create obligations in database
+    console.log(`📋 Creating obligations: ${extractionResult.obligations.length} obligations from extraction`);
     const obligationCreator = getObligationCreator();
-    const creationResult = await obligationCreator.createObligations(
-      extractionResult,
-      document_id,
-      site_id,
-      company_id,
-      module_id
-    );
+    let creationResult;
+    try {
+      creationResult = await obligationCreator.createObligations(
+        extractionResult,
+        document_id,
+        site_id,
+        company_id,
+        module_id
+      );
+      console.log(`✅ Obligation creation result: ${creationResult.obligationsCreated} created, ${creationResult.duplicatesSkipped} duplicates, ${creationResult.errors.length} errors`);
+      if (creationResult.errors.length > 0) {
+        console.error(`❌ Obligation creation errors:`, creationResult.errors);
+      }
+    } catch (creationError: any) {
+      console.error(`❌ Failed to create obligations:`, creationError.message);
+      console.error(`❌ Creation error stack:`, creationError.stack);
+      // Set creation result to empty to continue processing
+      creationResult = {
+        obligationsCreated: 0,
+        schedulesCreated: 0,
+        deadlinesCreated: 0,
+        reviewQueueItemsCreated: 0,
+        duplicatesSkipped: 0,
+        errors: [creationError.message],
+      };
+    }
 
     // Step 6: Log extraction to extraction_logs
     const extractionLogId = await logExtraction(document_id, extractionResult, processingResult);
@@ -93,11 +156,12 @@ export async function processDocumentJob(job: Job<DocumentProcessingJobData>): P
     // Step 6.5: Check for pattern discovery (if LLM was used and obligations were created successfully)
     if (extractionResult.usedLLM && creationResult.obligationsCreated > 0 && extractionLogId) {
       // Get created obligation IDs for pattern discovery
+      // Note: status is 'PENDING' for newly created obligations, not null
       const { data: obligations } = await supabaseAdmin
         .from('obligations')
         .select('id')
         .eq('document_id', document_id)
-        .is('status', null)
+        .is('deleted_at', null)
         .limit(10);
 
       if (obligations && obligations.length >= 3) {
@@ -109,17 +173,69 @@ export async function processDocumentJob(job: Job<DocumentProcessingJobData>): P
       }
     }
 
-    // Step 7: Update document status
-    await supabaseAdmin
+    // Step 7: Update document status (use 'COMPLETED' not 'EXTRACTED' - that's what the DB constraint allows)
+    // Always update to COMPLETED even if no obligations were created (extraction completed successfully)
+    console.log(`📝 Updating document ${document_id} status to COMPLETED (${creationResult.obligationsCreated} obligations created)`);
+    
+    // First verify obligations exist before updating status
+    const { data: obligationCheck, error: checkError } = await supabaseAdmin
+      .from('obligations')
+      .select('id')
+      .eq('document_id', document_id)
+      .is('deleted_at', null)
+      .limit(10);
+    
+    console.log(`🔍 Verifying obligations exist before status update: ${obligationCheck?.length || 0} found`);
+    if (checkError) {
+      console.error(`⚠️ Error checking obligations:`, checkError.message);
+    }
+    if (obligationCheck && obligationCheck.length > 0) {
+      console.log(`✅ Found ${obligationCheck.length} obligations in database`);
+    } else {
+      console.warn(`⚠️ No obligations found in database for document ${document_id}`);
+    }
+    
+    const { data: updatedDoc, error: updateError } = await supabaseAdmin
       .from('documents')
       .update({
-        extraction_status: 'EXTRACTED',
-        obligation_count: creationResult.obligationsCreated,
-        extraction_completed_at: new Date().toISOString(),
+        extraction_status: 'COMPLETED',
       })
-      .eq('id', document_id);
+      .eq('id', document_id)
+      .select('id, extraction_status')
+      .single();
+    
+    if (updateError) {
+      console.error(`❌ Failed to update document status:`, JSON.stringify(updateError, null, 2));
+      console.error(`❌ Update error details:`, {
+        message: updateError.message,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint,
+      });
+      throw new Error(`Failed to update document status: ${updateError.message}`);
+    } else {
+      console.log(`✅ Document ${document_id} status updated to: ${updatedDoc?.extraction_status}`);
+    }
     
     console.log(`✅ Document ${document_id} extraction completed: ${creationResult.obligationsCreated} obligations created`);
+    
+    // Verify obligations are queryable after status update (wait a bit for DB consistency)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const { data: finalCheck, error: finalCheckError } = await supabaseAdmin
+      .from('obligations')
+      .select('id, obligation_title')
+      .eq('document_id', document_id)
+      .is('deleted_at', null)
+      .limit(10);
+    
+    if (finalCheckError) {
+      console.error(`⚠️ Error in final obligation check:`, finalCheckError.message);
+    } else {
+      console.log(`🔍 Final obligation check: ${finalCheck?.length || 0} obligations queryable`);
+      if (finalCheck && finalCheck.length > 0) {
+        console.log(`📋 Sample obligations:`, finalCheck.slice(0, 3).map(o => ({ id: o.id, title: o.obligation_title })));
+      }
+    }
 
     // Step 8: Update job status
     await updateJobStatus(document_id, 'COMPLETED', {
@@ -180,23 +296,48 @@ async function updateJobStatus(
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED',
   result?: any
 ): Promise<void> {
-  const { data: jobs } = await supabaseAdmin
+  // Query by payload->document_id since background_jobs doesn't have entity_id column
+  const { data: jobs, error: queryError } = await supabaseAdmin
     .from('background_jobs')
-    .select('id')
-    .eq('entity_id', documentId)
+    .select('id, payload')
     .eq('job_type', 'DOCUMENT_EXTRACTION')
+    .eq('payload->>document_id', documentId)
     .order('created_at', { ascending: false })
     .limit(1);
 
+  if (queryError) {
+    console.error(`❌ Error querying background_jobs for document ${documentId}:`, queryError);
+    return;
+  }
+
   if (jobs && jobs.length > 0) {
-    await supabaseAdmin
+    const updateData: any = {
+      status: status === 'PROCESSING' ? 'RUNNING' : status, // Map PROCESSING to RUNNING for DB
+      updated_at: new Date().toISOString(),
+    };
+    
+    if (result) {
+      updateData.result = typeof result === 'string' ? result : JSON.stringify(result);
+    }
+    
+    if (status === 'COMPLETED') {
+      updateData.completed_at = new Date().toISOString();
+    } else if (status === 'PROCESSING') {
+      updateData.started_at = new Date().toISOString();
+    }
+    
+    const { error: updateError } = await supabaseAdmin
       .from('background_jobs')
-      .update({
-        status,
-        result: result ? JSON.stringify(result) : null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', jobs[0].id);
+    
+    if (updateError) {
+      console.error(`❌ Error updating background_job ${jobs[0].id}:`, updateError);
+    } else {
+      console.log(`✅ Updated background_job ${jobs[0].id} to status ${status}`);
+    }
+  } else {
+    console.warn(`⚠️ No background_job found for document ${documentId}`);
   }
 }
 
@@ -247,7 +388,6 @@ async function logExtraction(
     output_tokens: outputTokens,
     estimated_cost: estimatedCost,
     rule_library_hits: ruleLibraryHits,
-    api_calls_made: apiCallsMade,
     errors: extractionResult.errors || [],
     warnings: [],
     metadata: {

@@ -28,6 +28,7 @@ export class ObligationCreator {
     companyId: string,
     moduleId: string
   ): Promise<ObligationCreationResult> {
+    console.log(`📋 Creating obligations: ${extractionResult.obligations.length} obligations to process`);
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
     const result: ObligationCreationResult = {
       obligationsCreated: 0,
@@ -38,11 +39,21 @@ export class ObligationCreator {
       errors: [],
     };
 
+    if (extractionResult.obligations.length === 0) {
+      console.warn('⚠️ No obligations to create - extraction result is empty');
+      console.warn('⚠️ This might indicate an issue with the extraction process');
+      return result;
+    }
+    
+    console.log(`📋 Processing ${extractionResult.obligations.length} obligations for document ${documentId}`);
+
     for (const obligationData of extractionResult.obligations) {
       try {
         // Step 1: Validate obligation data
         if (!this.validateObligation(obligationData)) {
-          result.errors.push(`Invalid obligation: ${obligationData.title || 'Unknown'}`);
+          const errorMsg = `Invalid obligation: ${obligationData.title || obligationData.description || 'Unknown'}`;
+          console.warn(`⚠️ ${errorMsg}`);
+          result.errors.push(errorMsg);
           continue;
         }
 
@@ -66,30 +77,40 @@ export class ObligationCreator {
             site_id: siteId,
             company_id: companyId,
             module_id: moduleId,
-            obligation_text: obligationData.description || obligationData.title,
-            summary: obligationData.title,
-            category: obligationData.category,
-            frequency: obligationData.frequency || null,
+            original_text: obligationData.description || obligationData.title || '',
+            obligation_title: obligationData.title || obligationData.description?.substring(0, 100) || 'Untitled Obligation',
+            obligation_description: obligationData.description || null,
+            category: obligationData.category || 'RECORD_KEEPING',
+            frequency: this.normalizeFrequency(obligationData.frequency) || null,
             deadline_date: obligationData.deadline_date || null,
             deadline_relative: obligationData.deadline_relative || null,
             is_subjective: obligationData.is_subjective || false,
-            is_improvement: obligationData.is_improvement || false,
             confidence_score: obligationData.confidence_score || 0.7,
             condition_reference: obligationData.condition_reference || null,
-            condition_type: obligationData.condition_type || 'STANDARD',
             page_reference: obligationData.page_reference || null,
-            status: 'ACTIVE',
-            review_status: obligationData.confidence_score < 0.7 ? 'PENDING_REVIEW' : 'AUTO_CONFIRMED',
+            status: 'PENDING',
+            review_status: obligationData.confidence_score < 0.7 ? 'PENDING' : 'CONFIRMED',
+            evidence_suggestions: obligationData.evidence_suggestions || [],
+            source_pattern_id: obligationData.source_pattern_id || null,
+            import_source: 'PDF_EXTRACTION',
           })
           .select()
           .single();
 
         if (obligationError || !obligation) {
-          result.errors.push(`Failed to create obligation: ${obligationError?.message || 'Unknown error'}`);
+          const errorMsg = `Failed to create obligation: ${obligationError?.message || 'Unknown error'}`;
+          console.error(`❌ ${errorMsg}`, obligationError);
+          console.error(`❌ Obligation data that failed:`, JSON.stringify({
+            title: obligationData.title,
+            description: obligationData.description?.substring(0, 100),
+            category: obligationData.category,
+          }, null, 2));
+          result.errors.push(errorMsg);
           continue;
         }
 
         result.obligationsCreated++;
+        console.log(`✅ Created obligation ${result.obligationsCreated}/${extractionResult.obligations.length}: ${obligationData.title || 'Untitled'}`);
 
         // Step 4: Create schedules (if frequency specified)
         if (obligationData.frequency && obligationData.frequency !== 'ONE_TIME' && obligationData.frequency !== 'EVENT_TRIGGERED') {
@@ -135,7 +156,44 @@ export class ObligationCreator {
       }
     }
 
+    console.log(`📋 Obligation creation complete: ${result.obligationsCreated} created, ${result.duplicatesSkipped} duplicates, ${result.errors.length} errors`);
+    if (result.errors.length > 0) {
+      console.error('❌ Errors:', result.errors);
+    }
+
     return result;
+  }
+
+  /**
+   * Normalize frequency to match database constraints
+   */
+  private normalizeFrequency(frequency?: string | null): string | null {
+    if (!frequency) return null;
+    
+    const normalized = frequency.toUpperCase().trim();
+    
+    // Map invalid frequencies to valid ones
+    const frequencyMap: Record<string, string> = {
+      'QUADRENNIAL': 'ANNUAL', // 4 years -> annual
+      'QUINQUENNIAL': 'ANNUAL', // 5 years -> annual
+      'BIENNIAL': 'ANNUAL', // 2 years -> annual
+      'SEMIANNUAL': 'QUARTERLY', // 6 months -> quarterly
+      'BIWEEKLY': 'WEEKLY', // 2 weeks -> weekly
+    };
+    
+    // Check if it's a valid frequency
+    const validFrequencies = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'ANNUAL', 'ONE_TIME', 'CONTINUOUS', 'EVENT_TRIGGERED'];
+    if (validFrequencies.includes(normalized)) {
+      return normalized;
+    }
+    
+    // Try mapping
+    if (frequencyMap[normalized]) {
+      return frequencyMap[normalized];
+    }
+    
+    // Default to null if can't map
+    return null;
   }
 
   /**
@@ -170,7 +228,7 @@ export class ObligationCreator {
     // Get all existing obligations for this document
     const { data: existingObligations } = await supabase
       .from('obligations')
-      .select('obligation_text')
+      .select('original_text, obligation_title')
       .eq('document_id', documentId);
 
     if (!existingObligations || existingObligations.length === 0) {
@@ -182,7 +240,8 @@ export class ObligationCreator {
     const textWords = new Set(text.toLowerCase().split(/\s+/));
     
     for (const existing of existingObligations) {
-      const existingWords = new Set(existing.obligation_text.toLowerCase().split(/\s+/));
+      const existingText = (existing.original_text || existing.obligation_title || '').toLowerCase();
+      const existingWords = new Set(existingText.split(/\s+/));
       const intersection = new Set([...textWords].filter(x => existingWords.has(x)));
       const union = new Set([...textWords, ...existingWords]);
       const similarity = intersection.size / union.size;

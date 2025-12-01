@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
       mime_type: file.type,
       is_native_pdf: fileExtension2 === '.pdf',
       status: 'ACTIVE',
-      extraction_status: 'PENDING',
+      extraction_status: 'PROCESSING', // Set to PROCESSING immediately so UI shows progress bar
       import_source: 'PDF_EXTRACTION',
       metadata: metadata,
       uploaded_by: user.id,
@@ -343,7 +343,7 @@ export async function POST(request: NextRequest) {
       title: documentData.title,
       uploaded_by: documentData.uploaded_by,
     });
-    
+
     const { data: document, error: docError } = await supabaseAdmin
       .from('documents')
       .insert(documentData)
@@ -358,7 +358,8 @@ export async function POST(request: NextRequest) {
     if (docError || !document) {
       // Rollback: Delete uploaded file
       await supabaseAdmin.storage.from('documents').remove([storagePath]);
-      console.error('Failed to create document:', docError);
+      console.error('Failed to create document:', JSON.stringify(docError, null, 2));
+      console.error('Document data that failed:', JSON.stringify(documentData, null, 2));
       return errorResponse(
         ErrorCodes.INTERNAL_ERROR,
         'Failed to create document record',
@@ -426,11 +427,14 @@ export async function POST(request: NextRequest) {
           }
         );
         console.log('✅ Job enqueued successfully');
-        
-        // Update document status to PROCESSING
+
+        // Status already set to PROCESSING on creation, but ensure it's set
+        // Note: extraction_started_at column doesn't exist in documents table
         await supabaseAdmin
           .from('documents')
-          .update({ extraction_status: 'PROCESSING' })
+          .update({ 
+            extraction_status: 'PROCESSING',
+          })
           .eq('id', document.id);
       } catch (queueError: any) {
         console.error('❌ Failed to enqueue job:', queueError.message);

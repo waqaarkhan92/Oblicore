@@ -26,9 +26,9 @@ export const RETRY_CONFIG: RetryConfig = {
 };
 
 export const TIMEOUT_CONFIG: TimeoutConfig = {
-  standard: 30000, // 30 seconds for standard documents (≤49 pages)
-  medium: 120000, // 120 seconds for medium documents (20-49 pages or 5-10MB)
-  large: 300000, // 5 minutes for large documents (≥50 pages AND ≥10MB)
+  standard: 180000, // 3 minutes for standard documents (increased from 30s - LLM extraction takes time)
+  medium: 300000, // 5 minutes for medium documents (increased from 2m)
+  large: 600000, // 10 minutes for large documents (increased from 5m)
 };
 
 export interface OpenAIRequestConfig {
@@ -77,8 +77,10 @@ export class OpenAIClient {
    * Get timeout based on document size
    */
   getDocumentTimeout(pageCount?: number, fileSizeBytes?: number): number {
+    // Always use at least medium timeout for extraction (LLM calls take time)
+    // Standard timeout is too short for PDF extraction with many obligations
     if (pageCount === undefined && fileSizeBytes === undefined) {
-      return TIMEOUT_CONFIG.standard;
+      return TIMEOUT_CONFIG.medium; // Use medium instead of standard
     }
 
     const isLarge = (pageCount !== undefined && pageCount >= 50) &&
@@ -92,7 +94,8 @@ export class OpenAIClient {
     } else if (isMedium) {
       return TIMEOUT_CONFIG.medium;
     } else {
-      return TIMEOUT_CONFIG.standard;
+      // Even for small documents, use medium timeout for extraction
+      return TIMEOUT_CONFIG.medium;
     }
   }
 

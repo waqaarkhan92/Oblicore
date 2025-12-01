@@ -89,12 +89,12 @@ export async function GET(
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       const result = await supabaseAdmin
-        .from('documents')
+      .from('documents')
         .select('id, site_id, document_type, title, reference_number, status, extraction_status, storage_path, file_size_bytes, mime_type, created_at, updated_at, uploaded_by')
-        .eq('id', documentId)
-        .is('deleted_at', null)
-        .maybeSingle();
-      
+      .eq('id', documentId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
       document = result.data;
       error = result.error;
       
@@ -167,7 +167,7 @@ export async function GET(
         { request_id: requestId }
       );
     }
-    
+
     // If document found, verify user has access
     if (document) {
       // Check if user uploaded the document (they always have access to their own uploads)

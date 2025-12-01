@@ -38,9 +38,10 @@ export async function GET(
     }
 
     // Get document - RLS will enforce access control
+    // Note: extraction_completed_at and obligation_count columns don't exist
     const { data: document, error: docError } = await supabaseAdmin
       .from('documents')
-      .select('id, extraction_status, extraction_completed_at, obligation_count')
+      .select('id, extraction_status, updated_at')
       .eq('id', documentId)
       .is('deleted_at', null)
       .maybeSingle();
@@ -56,14 +57,15 @@ export async function GET(
     }
 
     // If extraction is in progress, return current status
-    if (document.extraction_status === 'PROCESSING' || document.extraction_status === 'EXTRACTING') {
+    // Note: EXTRACTING status doesn't exist in DB, only PROCESSING
+    if (document.extraction_status === 'PROCESSING') {
       const inProgressResponse = successResponse(
         {
           document_id: documentId,
           extraction_status: 'IN_PROGRESS',
           obligations: [],
           extraction_logs: null,
-          created_at: document.extraction_completed_at || new Date().toISOString(),
+          created_at: document.updated_at || new Date().toISOString(),
         },
         202, // Accepted - extraction in progress
         { request_id: requestId }
@@ -72,14 +74,14 @@ export async function GET(
     }
 
     // If extraction failed, return error status
-    if (document.extraction_status === 'PROCESSING_FAILED') {
+    if (document.extraction_status === 'PROCESSING_FAILED' || document.extraction_status === 'FAILED' || document.extraction_status === 'EXTRACTION_FAILED') {
       const failedResponse = successResponse(
         {
           document_id: documentId,
           extraction_status: 'FAILED',
           obligations: [],
           extraction_logs: null,
-          created_at: document.extraction_completed_at || new Date().toISOString(),
+          created_at: document.updated_at || new Date().toISOString(),
         },
         200,
         { request_id: requestId }
@@ -149,7 +151,7 @@ export async function GET(
           review_status: ob.review_status,
         })),
         extraction_logs: extractionLogsSummary,
-        created_at: document.extraction_completed_at || new Date().toISOString(),
+        created_at: document.updated_at || new Date().toISOString(),
       },
       200,
       { request_id: requestId }

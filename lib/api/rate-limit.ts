@@ -33,6 +33,10 @@ export const RATE_LIMIT_CONFIG = {
     limit: 5,
     windowMs: 60 * 1000, // 1 minute
   },
+  status_polling: {
+    limit: 60, // Allow 60 requests per minute for status/obligations polling (1 per second)
+    windowMs: 60 * 1000, // 1 minute
+  },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMIT_CONFIG;
@@ -43,6 +47,10 @@ export type RateLimitType = keyof typeof RATE_LIMIT_CONFIG;
 function getEndpointType(pathname: string): RateLimitType {
   if (pathname.includes('/documents') && pathname.match(/\/documents$/)) {
     return 'document_upload';
+  }
+  // Status polling endpoints (extraction-status, obligations) need higher limits
+  if (pathname.includes('/extraction-status') || pathname.includes('/obligations')) {
+    return 'status_polling';
   }
   if (pathname.includes('/ai-extraction') || pathname.includes('/extract')) {
     return 'ai_extraction';

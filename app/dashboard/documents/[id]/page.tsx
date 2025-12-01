@@ -1,7 +1,7 @@
 'use client';
 
 import { use } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { FileText, Download, RefreshCw, Trash2 } from 'lucide-react';
@@ -36,81 +36,284 @@ export default function DocumentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const queryClient = useQueryClient();
+  
+  console.log('🔍 DocumentDetailPage rendered with id:', id);
 
   const { data: document, isLoading: docLoading, error: docError } = useQuery<Document>({
     queryKey: ['document', id],
     queryFn: async () => {
       const response = await apiClient.get<Document>(`/documents/${id}`);
+      console.log('📄 Document fetched - extraction_status:', response.data?.extraction_status);
       return response.data;
     },
     retry: 1,
     enabled: !!id,
-    refetchInterval: (data) => {
-      // Poll every 3 seconds if extraction is in progress
-      if (data?.extraction_status === 'PENDING' || data?.extraction_status === 'PROCESSING' || data?.extraction_status === 'EXTRACTING') {
-        return 3000;
+    staleTime: 0, // Always consider data stale to force refetch
+    refetchInterval: (query) => {
+      // Get fresh document data from cache
+      const freshDoc = queryClient.getQueryData<Document>(['document', id]);
+      if (freshDoc && freshDoc.extraction_status !== 'COMPLETED' && freshDoc.extraction_status !== 'PROCESSING_FAILED' && freshDoc.extraction_status !== 'FAILED') {
+        return 5000; // Poll every 5 seconds
       }
       return false;
     },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
-  const { data: obligations, isLoading: obligationsLoading } = useQuery<Obligation[]>({
+  const { data: obligations, isLoading: obligationsLoading, error: obligationsError } = useQuery<Obligation[]>({
     queryKey: ['document-obligations', id],
     queryFn: async () => {
-      const response = await apiClient.get<Obligation[]>(`/documents/${id}/obligations`);
-      return response.data || [];
-    },
-    enabled: !!document,
-    refetchInterval: (data) => {
-      // Poll every 2 seconds if extraction is in progress and no obligations yet
-      if (document?.extraction_status === 'PROCESSING' || document?.extraction_status === 'EXTRACTING') {
-        return 2000;
+      try {
+        console.log('📋 Fetching obligations for document:', id);
+        const response = await apiClient.get<Obligation[]>(`/documents/${id}/obligations`);
+        
+        console.log('📋 Full obligations response:', JSON.stringify(response, null, 2));
+        console.log('📋 Response keys:', Object.keys(response));
+        console.log('📋 Response.data:', response.data);
+        console.log('📋 Response.data type:', typeof response.data);
+        console.log('📋 Response.data is array:', Array.isArray(response.data));
+        console.log('📋 Response.data length:', Array.isArray(response.data) ? response.data.length : 'not an array');
+        console.log('📋 Response.pagination:', response.pagination);
+        console.log('📋 Response.meta:', response.meta);
+        
+        // Handle paginated response - data is already the array in paginatedResponse
+        const obligations = Array.isArray(response.data) ? response.data : [];
+        console.log('📋 Parsed obligations:', obligations.length);
+        
+        if (obligations.length > 0) {
+          console.log('✅ Obligations found:', obligations.length);
+          console.log('📋 First obligation sample:', JSON.stringify(obligations[0], null, 2));
+        } else {
+          console.warn('⚠️ No obligations returned from API for document:', id);
+          console.warn('⚠️ Response structure:', {
+            hasData: 'data' in response,
+            dataType: typeof response.data,
+            dataValue: response.data,
+            fullResponse: response,
+          });
+        }
+        
+        return obligations;
+      } catch (error: any) {
+        console.error('❌ Error fetching obligations:', error);
+        console.error('❌ Error details:', {
+          message: error?.message,
+          status: error?.status,
+          code: error?.code,
+          response: error?.response,
+          stack: error?.stack,
+        });
+        console.error('❌ Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        // Return empty array instead of throwing to prevent query from failing
+        // The error will still be available in obligationsError
+        return [];
       }
-      return false;
     },
+    enabled: !!id, // Always enabled if we have an ID (don't wait for document)
+    staleTime: 0, // Always consider data stale to force refetch
+    refetchInterval: (query) => {
+      // Get fresh document data from cache
+      const freshDoc = queryClient.getQueryData<Document>(['document', id]);
+      const currentObligations = query.data;
+      
+      console.log('🔄 Obligations refetchInterval check:', {
+        hasDoc: !!freshDoc,
+        docStatus: freshDoc?.extraction_status,
+        currentObligationsCount: currentObligations?.length || 0,
+        queryAge: query.dataUpdatedAt ? Date.now() - query.dataUpdatedAt : 0,
+      });
+      
+      // Always poll if extraction is in progress or if we have no obligations yet
+      // Keep polling even after COMPLETED if we still don't have obligations (they might be delayed)
+      // Note: Backend only uses 'PROCESSING', not 'EXTRACTING' (EXTRACTING was removed due to DB constraint)
+      if (freshDoc && (
+        freshDoc.extraction_status === 'PROCESSING' ||
+        freshDoc.extraction_status === 'PENDING' ||
+        (freshDoc.extraction_status === 'COMPLETED' && (!currentObligations || currentObligations.length === 0))
+      )) {
+        console.log('🔄 Polling obligations (status:', freshDoc.extraction_status, ', count:', currentObligations?.length || 0, ')');
+        return 3000; // Poll every 3 seconds (faster) to catch obligations as soon as they're visible
+      }
+      // Also poll if we don't have document yet (might be loading)
+      if (!freshDoc) {
+        console.log('🔄 Polling obligations (no document yet)');
+        return 5000;
+      }
+      // Keep polling for a bit even after we get obligations, in case more are being added
+      if (freshDoc && freshDoc.extraction_status === 'COMPLETED') {
+        if (currentObligations && currentObligations.length > 0) {
+          // Poll a few more times to catch any delayed obligations
+          const queryAge = Date.now() - (query.dataUpdatedAt || 0);
+          if (queryAge < 30000) { // Keep polling for 30 seconds after completion
+            console.log('🔄 Polling obligations (completed, query age:', Math.floor(queryAge / 1000), 's)');
+            return 3000;
+          }
+        } else {
+          // COMPLETED but no obligations - keep polling longer!
+          const queryAge = Date.now() - (query.dataUpdatedAt || 0);
+          if (queryAge < 120000) { // Keep polling for 2 minutes if no obligations found
+            console.log('🔄 Polling obligations (completed but no obligations yet, query age:', Math.floor(queryAge / 1000), 's)');
+            return 5000;
+          }
+        }
+      }
+      console.log('🔄 Stopping obligations polling');
+      return false; // Stop polling when done
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    // Add retry logic
+    retry: 2,
+    retryDelay: 1000,
   });
 
   // Poll extraction status if processing
-  const { data: extractionStatus } = useQuery<{
+  const { data: extractionStatus, error: extractionStatusError } = useQuery<{
     status: string;
-    progress: number | null;
+    progress: number;
     obligation_count: number;
+    document_id?: string;
+    started_at?: string | null;
+    completed_at?: string | null;
   }>({
     queryKey: ['extraction-status', id],
     queryFn: async () => {
-      const response = await apiClient.get<{
-        status: string;
-        progress: number | null;
-        obligation_count: number;
-      }>(`/documents/${id}/extraction-status`);
-      return response.data;
+      try {
+        console.log('📊 Fetching extraction status for:', id);
+        const response = await apiClient.get<{
+          status: string;
+          progress: number;
+          obligation_count: number;
+          document_id?: string;
+          started_at?: string | null;
+          completed_at?: string | null;
+        }>(`/documents/${id}/extraction-status`);
+        console.log('📊 Extraction status response:', JSON.stringify(response.data));
+        // Ensure progress is always a number, never null
+        const statusData = response.data;
+        return {
+          ...statusData,
+          progress: statusData.progress ?? 0,
+          obligation_count: statusData.obligation_count ?? 0,
+        };
+      } catch (error: any) {
+        // Better error logging
+        const errorDetails = {
+          message: error?.message || 'Unknown error',
+          status: error?.status || error?.response?.status || 'unknown',
+          responseData: error?.response?.data || error?.response || null,
+          errorString: String(error),
+          errorType: error?.constructor?.name || typeof error,
+        };
+        console.error('❌ Failed to fetch extraction status:', errorDetails);
+        
+        // Get fresh document data from cache for error fallback
+        const freshDoc = queryClient.getQueryData<Document>(['document', id]);
+        const fallback = {
+          status: freshDoc?.extraction_status || 'PENDING',
+          progress: freshDoc?.extraction_status === 'COMPLETED' ? 100 : (freshDoc?.extraction_status === 'PENDING' ? 0 : 10),
+          obligation_count: 0,
+        };
+        console.log('📊 Using fallback status:', fallback);
+        return fallback;
+      }
     },
-    enabled: !!document && (document.extraction_status === 'PENDING' || document.extraction_status === 'PROCESSING' || document.extraction_status === 'EXTRACTING'),
-    refetchInterval: 2000, // Poll every 2 seconds
+    enabled: !!id, // Always enabled if we have an ID (don't wait for document)
+    staleTime: 0, // Always consider data stale to force refetch
+    refetchInterval: (query) => {
+      // Always poll extraction-status while document is processing
+      const freshDoc = queryClient.getQueryData<Document>(['document', id]);
+      // Note: Backend only uses 'PROCESSING', not 'EXTRACTING' (EXTRACTING was removed due to DB constraint)
+      if (freshDoc && (
+        freshDoc.extraction_status === 'PENDING' || 
+        freshDoc.extraction_status === 'PROCESSING'
+      )) {
+        return 5000; // Poll every 5 seconds while in progress
+      }
+      // Keep polling after extraction completes to get final obligation count
+      if (freshDoc && freshDoc.extraction_status === 'COMPLETED') {
+        const currentStatus = query.data;
+        // Keep polling until we get 100% progress and obligations show up
+        if (!currentStatus || currentStatus.progress !== 100 || currentStatus.obligation_count === 0) {
+          return 3000; // Poll every 3 seconds until complete
+        }
+      }
+      return false; // Stop polling when done
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
 
+  // Show progress bar even while loading or if there's an error
   if (docLoading) {
     return (
-      <div className="text-center py-12 text-text-secondary">Loading document...</div>
+      <div className="space-y-6">
+        <div className="text-center py-12 text-text-secondary">Loading document...</div>
+        {/* Show progress bar section even while loading */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-text-primary mb-4">Extraction Progress</h2>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm text-text-secondary mb-2">
+                <span>Loading...</span>
+                <span>0%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: '0%' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (docError || !document) {
     return (
-      <div className="text-center py-12">
-        <p className="text-danger">
-          {docError ? `Error loading document: ${docError.message || 'Unknown error'}` : 'Document not found'}
-        </p>
-        <p className="text-sm text-text-secondary mt-2">Document ID: {id}</p>
-        <Link href="/dashboard/documents">
-          <Button variant="outline" className="mt-4">
-            Back to Documents
-          </Button>
-        </Link>
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <p className="text-danger">
+            {docError ? `Error loading document: ${docError.message || 'Unknown error'}` : 'Document not found'}
+          </p>
+          <p className="text-sm text-text-secondary mt-2">Document ID: {id}</p>
+          <Link href="/dashboard/documents">
+            <Button variant="outline" className="mt-4">
+              Back to Documents
+            </Button>
+          </Link>
+        </div>
+        {/* Show progress bar section even on error */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-text-primary mb-4">Extraction Progress</h2>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm text-text-secondary mb-2">
+                <span>Error loading document</span>
+                <span>0%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-danger h-2 rounded-full transition-all duration-300" style={{ width: '0%' }} />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
+  console.log('🔍 Rendering document page:', {
+    documentId: document?.id,
+    documentStatus: document?.extraction_status,
+    extractionStatus: extractionStatus,
+    obligationsCount: obligations?.length || 0,
+    obligationsLoading: obligationsLoading,
+    obligationsError: obligationsError?.message || null,
+    obligationsData: obligations ? obligations.slice(0, 2) : null, // First 2 for debugging
+  });
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -173,31 +376,62 @@ export default function DocumentDetailPage({
         </div>
       </div>
 
-      {/* Extraction Progress */}
-      {(document.extraction_status === 'PENDING' || document.extraction_status === 'PROCESSING' || document.extraction_status === 'EXTRACTING') && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-text-primary mb-4">Extraction Progress</h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm text-text-secondary mb-2">
-                <span>Processing document...</span>
-                <span>{extractionStatus?.progress !== null ? `${extractionStatus.progress}%` : '...'}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${extractionStatus?.progress || 0}%` }}
-                />
-              </div>
+      {/* Extraction Progress - Always show, update based on status */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-text-primary mb-4">Extraction Progress</h2>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-sm text-text-secondary mb-2">
+              <span>
+                {document.extraction_status === 'PENDING' && 'Waiting to start...'}
+                {document.extraction_status === 'PROCESSING' && 'Extracting obligations...'}
+                {document.extraction_status === 'COMPLETED' && 'Extraction completed'}
+                {(document.extraction_status === 'PROCESSING_FAILED' || document.extraction_status === 'FAILED' || document.extraction_status === 'EXTRACTION_FAILED') && 'Extraction failed'}
+                {!['PENDING', 'PROCESSING', 'COMPLETED', 'PROCESSING_FAILED', 'FAILED', 'EXTRACTION_FAILED'].includes(document.extraction_status) && `Status: ${document.extraction_status}`}
+              </span>
+              <span>
+                {extractionStatus?.progress !== undefined
+                  ? `${Math.max(0, Math.min(100, extractionStatus.progress))}%`
+                  : document.extraction_status === 'PENDING' ? '0%' 
+                  : document.extraction_status === 'COMPLETED' ? '100%'
+                  : (document.extraction_status === 'PROCESSING_FAILED' || document.extraction_status === 'FAILED') ? '0%'
+                  : '10%'}
+              </span>
             </div>
-            {extractionStatus?.obligation_count !== undefined && extractionStatus.obligation_count > 0 && (
-              <p className="text-sm text-text-secondary">
-                {extractionStatus.obligation_count} obligation{extractionStatus.obligation_count !== 1 ? 's' : ''} extracted so far...
-              </p>
-            )}
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-primary h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: extractionStatus?.progress !== undefined
+                    ? `${Math.max(0, Math.min(100, extractionStatus.progress))}%`
+                    : document.extraction_status === 'PENDING' ? '0%'
+                    : document.extraction_status === 'COMPLETED' ? '100%'
+                    : (document.extraction_status === 'PROCESSING_FAILED' || document.extraction_status === 'FAILED') ? '0%'
+                    : '10%',
+                }}
+              />
+            </div>
           </div>
+          {extractionStatus && extractionStatus.obligation_count !== undefined && extractionStatus.obligation_count > 0 && (
+            <p className="text-sm text-text-secondary">
+              ✅ {extractionStatus.obligation_count} obligation{extractionStatus.obligation_count !== 1 ? 's' : ''} extracted so far...
+            </p>
+          )}
+          {obligations && obligations.length > 0 && (
+            <p className="text-sm text-success">
+              ✅ {obligations.length} obligation{obligations.length !== 1 ? 's' : ''} available
+            </p>
+          )}
+          {extractionStatusError && (
+            <p className="text-sm text-danger">
+              ⚠️ Error loading progress: {extractionStatusError.message}
+            </p>
+          )}
+          <p className="text-xs text-text-tertiary">
+            DEBUG: extraction_status={document.extraction_status}, progress={extractionStatus?.progress ?? 'null'}, obligation_count={extractionStatus?.obligation_count ?? 'null'}, obligations.length={obligations?.length ?? 0}
+          </p>
         </div>
-      )}
+      </div>
 
       {/* Extracted Obligations */}
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -207,8 +441,47 @@ export default function DocumentDetailPage({
             <span className="ml-2 text-sm font-normal text-text-secondary">({obligations.length})</span>
           )}
         </h2>
+        <div className="text-xs text-text-secondary mb-2 space-y-1 p-2 bg-gray-50 rounded">
+          <p>
+            <strong>DEBUG:</strong> Loading={obligationsLoading ? 'true' : 'false'}, Count={obligations?.length || 0}, 
+            Status={document.extraction_status}, Error={obligationsError?.message || 'none'}
+          </p>
+          {obligations && obligations.length > 0 && (
+            <p className="text-green-600 font-semibold">
+              ✅ OBLIGATIONS DATA EXISTS: {obligations.length} items
+            </p>
+          )}
+          {!obligationsLoading && !obligationsError && (!obligations || obligations.length === 0) && document.extraction_status === 'COMPLETED' && (
+            <p className="text-red-600 font-semibold">
+              ⚠️ NO OBLIGATIONS DATA - Query returned empty array but document is COMPLETED
+            </p>
+          )}
+          {obligationsError && (
+            <p className="text-red-600 font-semibold">
+              ❌ ERROR: {obligationsError.message}
+            </p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              console.log('🔄 Manually refreshing obligations...');
+              queryClient.invalidateQueries({ queryKey: ['document-obligations', id] });
+              queryClient.invalidateQueries({ queryKey: ['document', id] });
+              queryClient.invalidateQueries({ queryKey: ['extraction-status', id] });
+            }}
+            className="mt-2"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Force Refresh
+          </Button>
+        </div>
         {obligationsLoading ? (
           <div className="text-center py-8 text-text-secondary">Loading obligations...</div>
+        ) : obligationsError ? (
+          <div className="text-center py-8 text-danger">
+            Error loading obligations: {obligationsError.message}
+          </div>
         ) : obligations && obligations.length > 0 ? (
           <div className="space-y-4">
             {obligations.map((obligation) => (
@@ -247,8 +520,12 @@ export default function DocumentDetailPage({
             <p className="text-text-secondary">
               {document.extraction_status === 'PENDING' || document.extraction_status === 'PROCESSING'
                 ? 'Obligations are being extracted...'
-                : document.extraction_status === 'PROCESSING_FAILED'
+                : (document.extraction_status === 'PROCESSING_FAILED' || document.extraction_status === 'FAILED' || document.extraction_status === 'EXTRACTION_FAILED')
                 ? `Extraction failed: ${document.extraction_error || 'Unknown error'}. Please try again later or contact support.`
+                : document.extraction_status === 'COMPLETED'
+                ? (obligations && obligations.length === 0 
+                    ? 'Extraction completed but no obligations found. This might indicate an issue with the extraction process.'
+                    : 'Extraction completed. Obligations should appear below.')
                 : 'No obligations extracted yet'}
             </p>
             {document.extraction_status === 'PROCESSING_FAILED' && (
