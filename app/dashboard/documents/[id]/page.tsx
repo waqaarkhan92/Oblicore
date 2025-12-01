@@ -50,6 +50,7 @@ export default function DocumentDetailPage({
     retry: 1,
     enabled: !!id,
     staleTime: 0, // Always consider data stale to force refetch
+    gcTime: 0, // Don't cache query results (previously cacheTime)
     refetchInterval: (query) => {
       // Get fresh document data from cache
       const freshDoc = queryClient.getQueryData<Document>(['document', id]);
@@ -81,8 +82,9 @@ export default function DocumentDetailPage({
     queryFn: async () => {
       try {
         console.log('📋 Fetching obligations for document:', id);
-        const response = await apiClient.get<Obligation[]>(`/documents/${id}/obligations`);
-        
+        // Fetch with higher limit to get all obligations (increase from default 20 to 100)
+        const response = await apiClient.get<Obligation[]>(`/documents/${id}/obligations?limit=100`);
+
         console.log('📋 Full obligations response:', JSON.stringify(response, null, 2));
         console.log('📋 Response keys:', Object.keys(response));
         console.log('📋 Response.data:', response.data);
@@ -91,11 +93,11 @@ export default function DocumentDetailPage({
         console.log('📋 Response.data length:', Array.isArray(response.data) ? response.data.length : 'not an array');
         console.log('📋 Response.pagination:', response.pagination);
         console.log('📋 Response.meta:', response.meta);
-        
+
         // Handle paginated response - data is already the array in paginatedResponse
         const obligations = Array.isArray(response.data) ? response.data : [];
         console.log('📋 Parsed obligations:', obligations.length);
-        
+
         if (obligations.length > 0) {
           console.log('✅ Obligations found:', obligations.length);
           console.log('📋 First obligation sample:', JSON.stringify(obligations[0], null, 2));
@@ -108,7 +110,7 @@ export default function DocumentDetailPage({
             fullResponse: response,
           });
         }
-        
+
         return obligations;
       } catch (error: any) {
         console.error('❌ Error fetching obligations:', error);
@@ -127,6 +129,7 @@ export default function DocumentDetailPage({
     },
     enabled: !!id, // Always enabled if we have an ID (don't wait for document)
     staleTime: 0, // Always consider data stale to force refetch
+    gcTime: 0, // Don't cache query results
     refetchInterval: (query) => {
       // Get fresh document data from cache
       const freshDoc = queryClient.getQueryData<Document>(['document', id]);

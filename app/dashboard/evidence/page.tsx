@@ -39,9 +39,10 @@ export default function EvidencePage() {
       const params = new URLSearchParams();
       if (searchQuery) params.append('filter[file_name]', searchQuery);
       if (selectedSite) params.append('filter[site_id]', selectedSite);
-      
-      const response = await apiClient.get(`/evidence?${params.toString()}`);
-      return response.data;
+
+      const response = await apiClient.get<EvidenceItem[]>(`/evidence?${params.toString()}`);
+      // apiClient.get returns {data: [...], pagination: {...}}, so return the whole response
+      return response;
     },
   });
 

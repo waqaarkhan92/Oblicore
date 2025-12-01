@@ -68,17 +68,19 @@ export default function PacksPage() {
   }>({
     queryKey: ['packs'],
     queryFn: async () => {
-      const response = await apiClient.get('/packs');
-      return response.data;
+      const response = await apiClient.get<Pack[]>('/packs');
+      // apiClient.get returns {data: [...], pagination: {...}}, so return the whole response
+      return response;
     },
     refetchInterval: (data) => {
       // Poll every 5 seconds if there are packs with status PENDING or GENERATING
       const packs = data?.data || [];
-      const hasGenerating = packs.some((p: Pack) => 
+      const hasGenerating = packs.some((p: Pack) =>
         p.status === 'PENDING' || p.status === 'GENERATING'
       );
       return hasGenerating ? 5000 : false;
     },
+    retry: 2, // Only retry twice on failure to avoid rate limiting
   });
 
   // Fetch sites
@@ -87,8 +89,8 @@ export default function PacksPage() {
   }>({
     queryKey: ['sites'],
     queryFn: async () => {
-      const response = await apiClient.get('/sites');
-      return response.data;
+      const response = await apiClient.get<Site[]>('/sites');
+      return response;
     },
   });
 
@@ -101,8 +103,8 @@ export default function PacksPage() {
     queryKey: ['documents', selectedSite],
     queryFn: async () => {
       if (!selectedSite) return { data: [] };
-      const response = await apiClient.get(`/documents?filter[site_id]=${selectedSite}`);
-      return response.data;
+      const response = await apiClient.get<Document[]>(`/documents?filter[site_id]=${selectedSite}`);
+      return response;
     },
     enabled: !!selectedSite && selectedPackType !== 'BOARD_MULTI_SITE_RISK',
   });

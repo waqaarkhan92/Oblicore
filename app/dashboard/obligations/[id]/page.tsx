@@ -59,10 +59,19 @@ export default function ObligationDetailPage({
   const { data: evidence, isLoading: evidenceLoading } = useQuery<Evidence[]>({
     queryKey: ['obligation-evidence', id],
     queryFn: async () => {
-      const response = await apiClient.get<Evidence[]>(`/obligations/${id}/evidence`);
-      return response.data || [];
+      try {
+        const response = await apiClient.get<Evidence[]>(`/obligations/${id}/evidence`);
+        return response.data || [];
+      } catch (error: any) {
+        // Evidence endpoint might not exist yet or return 404 - return empty array
+        if (error.status === 404) {
+          return [];
+        }
+        throw error;
+      }
     },
     enabled: !!obligation,
+    retry: false, // Don't retry on 404
   });
 
   const { data: deadlines } = useQuery<Deadline[]>({

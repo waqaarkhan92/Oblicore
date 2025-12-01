@@ -89,10 +89,11 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      console.error(`❌ API Error Status:`, response.status);
-      console.error(`❌ API Error Data:`, data);
-      console.error(`❌ API Error Keys:`, Object.keys(data));
-      console.error(`❌ API Error Full:`, JSON.stringify(data, null, 2));
+      // Only log errors that aren't 404 (to reduce noise for missing resources)
+      if (response.status !== 404) {
+        console.error(`❌ API Error Status:`, response.status);
+        console.error(`❌ API Error:`, data?.error?.message || data?.message || 'Unknown error');
+      }
       // Create an error object that includes the full response
       const errorMessage = data?.error?.message || data?.message || `API request failed with status ${response.status}`;
       const error: any = new Error(errorMessage);
