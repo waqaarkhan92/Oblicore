@@ -380,11 +380,8 @@ export async function POST(request: NextRequest) {
         .insert({
           job_type: 'DOCUMENT_EXTRACTION',
           status: 'PENDING',
-          priority: 'NORMAL',
-          entity_type: 'documents',
-          entity_id: document.id,
-          company_id: site.company_id,
-          payload: JSON.stringify({
+          priority: 5, // Normal priority (integer, not string)
+          payload: {
             document_id: document.id,
             company_id: site.company_id,
             site_id: siteId,
@@ -393,12 +390,36 @@ export async function POST(request: NextRequest) {
             document_type: dbDocumentType,
             regulator: metadata.regulator || null,
             permit_reference: metadata.reference_number || null,
-          }),
+          },
         })
         .select('id')
         .single();
 
-      if (!jobError && jobRecord) {
+      if (jobError) {
+        console.error('❌ Failed to create background job record:', JSON.stringify(jobError, null, 2));
+        // Try to enqueue anyway without database record
+        try {
+          await documentQueue.add(
+            'DOCUMENT_EXTRACTION',
+            {
+              document_id: document.id,
+              company_id: site.company_id,
+              site_id: siteId,
+              module_id: module1.id,
+              file_path: storagePath,
+              document_type: dbDocumentType,
+              regulator: metadata.regulator || null,
+              permit_reference: metadata.reference_number || null,
+            },
+            {
+              priority: 5,
+            }
+          );
+          console.log('✅ Job enqueued without database record');
+        } catch (queueError: any) {
+          console.error('❌ Failed to enqueue job:', queueError.message);
+        }
+      } else if (jobRecord) {
         // Enqueue job in BullMQ
         await documentQueue.add(
           'DOCUMENT_EXTRACTION',
