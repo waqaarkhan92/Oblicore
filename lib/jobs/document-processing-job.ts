@@ -130,7 +130,6 @@ export async function processDocumentJob(job: Job<DocumentProcessingJobData>): P
       .from('documents')
       .update({
         extraction_status: 'PROCESSING_FAILED',
-        extraction_error: error.message || 'Unknown error',
       })
       .eq('id', document_id);
 
