@@ -20,6 +20,17 @@ interface Document {
   updated_at: string;
 }
 
+interface SiteAssignment {
+  id: string;
+  site_id: string;
+  is_primary: boolean;
+  obligations_shared: boolean;
+  sites: {
+    id: string;
+    name: string;
+  };
+}
+
 interface Obligation {
   id: string;
   obligation_title?: string;
@@ -77,7 +88,22 @@ export default function DocumentDetailPage({
     refetchOnWindowFocus: true,
   });
 
-  const { data: obligations, isLoading: obligationsLoading, error: obligationsError } = useQuery<Obligation[]>({
+  // Fetch site assignments
+  const { data: siteAssignments } = useQuery<SiteAssignment[]>({
+    queryKey: ['document-sites', id],
+    queryFn: async (): Promise<any> => {
+      try {
+        const response = await apiClient.get<{ assignments: SiteAssignment[] }>(`/documents/${id}/sites`);
+        return response.data?.assignments || [];
+      } catch (error) {
+        console.error('Error fetching site assignments:', error);
+        return [];
+      }
+    },
+    enabled: !!id,
+  });
+
+  const { data: obligations, isLoading: obligationsLoading, error: obligationsError} = useQuery<Obligation[]>({
     queryKey: ['document-obligations', id],
     queryFn: async (): Promise<any> => {
       try {
@@ -392,6 +418,59 @@ export default function DocumentDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Site Assignments */}
+      {siteAssignments && siteAssignments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-text-primary mb-4">
+            Assigned Sites
+            <span className="ml-2 text-sm font-normal text-text-secondary">({siteAssignments.length})</span>
+          </h2>
+          <div className="space-y-3">
+            {siteAssignments.map((assignment) => (
+              <div
+                key={assignment.id}
+                className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      {assignment.sites.name}
+                    </p>
+                    {assignment.is_primary && (
+                      <p className="text-xs text-primary mt-0.5">Primary Site</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {assignment.is_primary && (
+                    <span className="px-2 py-1 text-xs font-medium rounded-md bg-primary/20 text-primary">
+                      Primary
+                    </span>
+                  )}
+                  <span className={`px-2 py-1 text-xs font-medium rounded-md ${
+                    assignment.obligations_shared
+                      ? 'bg-success/20 text-success'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {assignment.obligations_shared ? 'Shared' : 'Replicated'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {siteAssignments.some(a => a.obligations_shared) && (
+            <p className="text-xs text-text-secondary mt-4 p-3 bg-gray-50 rounded border border-gray-200">
+              <strong>Shared:</strong> Obligations are shared across all assigned sites. Evidence can be linked from any site.
+            </p>
+          )}
+          {siteAssignments.some(a => !a.obligations_shared) && !siteAssignments.some(a => a.obligations_shared) && (
+            <p className="text-xs text-text-secondary mt-4 p-3 bg-gray-50 rounded border border-gray-200">
+              <strong>Replicated:</strong> Separate obligations created for each site. Evidence must be site-specific.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Extraction Progress - Always show, update based on status */}
       <div className="bg-white rounded-lg shadow-md p-6">

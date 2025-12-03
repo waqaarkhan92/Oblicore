@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
-import { Upload, X, FileText } from 'lucide-react';
+import { Upload, X, FileText, Check } from 'lucide-react';
 
 interface Site {
   id: string;
@@ -18,11 +18,12 @@ export default function DocumentUploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
-    site_id: '',
+    primary_site_id: '',
+    additional_site_ids: [] as string[],
+    obligations_shared: false,
     document_type: 'PERMIT',
   });
   const [dragActive, setDragActive] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Fetch sites
   const { data: sitesData } = useQuery<{ data: Site[] }>({
@@ -37,34 +38,33 @@ export default function DocumentUploadPage() {
     mutationFn: async (formDataToSubmit: FormData) => {
       return apiClient.upload('/documents', formDataToSubmit);
     },
-    onSuccess: (response: any) => {
-      console.log('Upload response:', JSON.stringify(response, null, 2));
+    onSuccess: async (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      
-      // The API returns { data: {...}, meta: {...} }
-      // apiClient.upload returns the full response object
-      let documentId = null;
-      
-      // The API returns { data: {...document...}, meta: {...} }
-      // apiClient.upload returns the parsed JSON response directly
-      // So response should be { data: { id: ..., ... }, meta: {...} }
-      documentId = response?.data?.id;
-      
-      console.log('Extracted document ID:', documentId);
-      console.log('Response structure:', {
-        hasData: !!response?.data,
-        dataKeys: response?.data ? Object.keys(response.data) : [],
-        topLevelKeys: Object.keys(response || {}),
-      });
-      
+
+      const documentId = response?.data?.id;
+
       if (!documentId) {
-        console.error('Upload response missing document ID. Full response:', JSON.stringify(response, null, 2));
         alert('Upload succeeded but document ID is missing. Please refresh the documents list.');
         router.push('/dashboard/documents');
         return;
       }
-      
-      console.log('Navigating to document:', `/dashboard/documents/${documentId}`);
+
+      // If additional sites selected, assign them via POST /documents/:id/sites
+      if (formData.additional_site_ids.length > 0) {
+        try {
+          for (const siteId of formData.additional_site_ids) {
+            await apiClient.post(`/documents/${documentId}/sites`, {
+              site_id: siteId,
+              is_primary: false,
+              obligations_shared: formData.obligations_shared,
+            });
+          }
+        } catch (error) {
+          console.error('Error assigning additional sites:', error);
+          // Continue anyway - document uploaded successfully
+        }
+      }
+
       router.push(`/dashboard/documents/${documentId}`);
     },
     onError: (error: any) => {
@@ -93,14 +93,12 @@ export default function DocumentUploadPage() {
   };
 
   const handleFileSelect = (file: File) => {
-    // Validate file type
     const allowedTypes = ['application/pdf'];
     if (!allowedTypes.includes(file.type)) {
       alert('Only PDF files are allowed');
       return;
     }
 
-    // Validate file size (50MB)
     const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
       alert('File size must be less than 50MB');
@@ -116,6 +114,15 @@ export default function DocumentUploadPage() {
     }
   };
 
+  const handleSiteToggle = (siteId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      additional_site_ids: prev.additional_site_ids.includes(siteId)
+        ? prev.additional_site_ids.filter(id => id !== siteId)
+        : [...prev.additional_site_ids, siteId],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -124,18 +131,21 @@ export default function DocumentUploadPage() {
       return;
     }
 
-    if (!formData.site_id) {
-      alert('Please select a site');
+    if (!formData.primary_site_id) {
+      alert('Please select a primary site');
       return;
     }
 
     const uploadFormData = new FormData();
     uploadFormData.append('file', selectedFile);
-    uploadFormData.append('site_id', formData.site_id);
+    uploadFormData.append('site_id', formData.primary_site_id);
     uploadFormData.append('document_type', formData.document_type);
 
     uploadMutation.mutate(uploadFormData);
   };
+
+  const availableAdditionalSites = sites.filter(s => s.id !== formData.primary_site_id);
+  const showMultiSiteOptions = formData.primary_site_id && availableAdditionalSites.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -211,25 +221,112 @@ export default function DocumentUploadPage() {
           )}
         </div>
 
-        {/* Site Selection */}
+        {/* Primary Site Selection */}
         <div>
           <label className="block text-sm font-medium text-text-primary mb-2">
-            Site <span className="text-danger">*</span>
+            Primary Site <span className="text-danger">*</span>
           </label>
           <select
-            value={formData.site_id}
-            onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
+            value={formData.primary_site_id}
+            onChange={(e) => setFormData({ ...formData, primary_site_id: e.target.value, additional_site_ids: [] })}
             required
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">Select a site</option>
+            <option value="">Select primary site</option>
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name}
               </option>
             ))}
           </select>
+          <p className="text-xs text-text-tertiary mt-1">
+            The primary site will be used for document assignment
+          </p>
         </div>
+
+        {/* Multi-Site Options */}
+        {showMultiSiteOptions && (
+          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <h3 className="text-sm font-medium text-text-primary mb-3">
+              Multi-Site Permit (Optional)
+            </h3>
+            <p className="text-xs text-text-secondary mb-4">
+              Select additional sites covered by this permit
+            </p>
+
+            {/* Additional Sites */}
+            <div className="space-y-2 mb-4">
+              {availableAdditionalSites.map((site) => (
+                <label
+                  key={site.id}
+                  className="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.additional_site_ids.includes(site.id)}
+                    onChange={() => handleSiteToggle(site.id)}
+                    className="mr-3 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  />
+                  <span className="text-sm text-text-primary">{site.name}</span>
+                  {formData.additional_site_ids.includes(site.id) && (
+                    <Check className="ml-auto h-4 w-4 text-success" />
+                  )}
+                </label>
+              ))}
+            </div>
+
+            {/* Obligations Shared Toggle */}
+            {formData.additional_site_ids.length > 0 && (
+              <div className="pt-4 border-t border-gray-200">
+                <p className="text-sm font-medium text-text-primary mb-2">
+                  Obligation Management
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-start p-3 rounded border border-gray-200 bg-white cursor-pointer hover:border-primary">
+                    <input
+                      type="radio"
+                      name="obligations_shared"
+                      checked={!formData.obligations_shared}
+                      onChange={() => setFormData({ ...formData, obligations_shared: false })}
+                      className="mt-0.5 mr-3 h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">
+                        Replicated per Site
+                      </p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        Create separate obligation records for each site. Evidence must be linked to the same site.
+                      </p>
+                    </div>
+                  </label>
+                  <label className="flex items-start p-3 rounded border border-gray-200 bg-white cursor-pointer hover:border-primary">
+                    <input
+                      type="radio"
+                      name="obligations_shared"
+                      checked={formData.obligations_shared}
+                      onChange={() => setFormData({ ...formData, obligations_shared: true })}
+                      className="mt-0.5 mr-3 h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-text-primary">
+                        Shared Across Sites
+                      </p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        Single obligation record for all sites. Evidence can be linked from any assigned site.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {formData.additional_site_ids.length > 0 && (
+              <p className="text-xs text-text-secondary mt-4">
+                {formData.additional_site_ids.length} additional site{formData.additional_site_ids.length !== 1 ? 's' : ''} selected
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Document Type Selection */}
         <div>
@@ -253,7 +350,7 @@ export default function DocumentUploadPage() {
           <Button
             type="submit"
             variant="primary"
-            disabled={!selectedFile || !formData.site_id || uploadMutation.isPending}
+            disabled={!selectedFile || !formData.primary_site_id || uploadMutation.isPending}
           >
             {uploadMutation.isPending ? 'Uploading...' : 'Upload Document'}
           </Button>
@@ -275,4 +372,3 @@ export default function DocumentUploadPage() {
     </div>
   );
 }
-
