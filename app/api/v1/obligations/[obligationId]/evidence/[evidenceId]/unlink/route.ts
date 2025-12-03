@@ -21,6 +21,7 @@ export async function DELETE(
       return authResult;
     }
 
+    const params = await props.params;
     const { obligationId, evidenceId } = params;
 
     // Verify obligation exists
