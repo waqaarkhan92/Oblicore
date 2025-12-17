@@ -1,6 +1,14 @@
 # EcoComply RLS & Permissions Rules Specification
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
+
+> [v1.2 UPDATE - Added 28 New Tables RLS Policies - 2025-12-05]
+>
+> Added RLS policies for:
+> - Enhanced Features V2 (11 tables): evidence_gaps, content_embeddings, compliance_risk_scores, etc.
+> - Regulatory Pack Engine (14 tables): elv_conditions, ccs_assessments, regulatory_packs, etc.
+> - Ingestion Schema (2 tables): ingestion_sessions, subjective_interpretations
+> - Review Queue Enhancement (1 table): review_queue_escalation_history
 
 > [CRITICAL FIX - Schema Alignment - 2025-01-01]
 > 
@@ -11,10 +19,10 @@
 > - Uses `module_activations.status = 'ACTIVE'` instead of `is_active = TRUE`
 > - Removed all references to non-existent `user_roles.company_id` and `user_site_assignments.role`
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Status:** Complete
 **Created by:** Cursor
-**Last Updated:** 2025-12-01
+**Last Updated:** 2025-12-05
 **Depends on:**
 - ✅ Product Logic Specification (1.1) - Complete
 - ✅ Canonical Dictionary (1.2) - Complete
@@ -24,6 +32,7 @@
 **Purpose:** Defines the complete Row Level Security (RLS) and permissions system for the EcoComply platform, including all RLS policies, CRUD matrices, permission evaluation logic, and security implementation details.
 
 **Changelog:**
+- **2025-12-05 (v1.2):** Added RLS policies for 28 new tables (Enhanced Features V2, Regulatory Pack Engine, Ingestion Schema, Review Queue Enhancement)
 - **2025-12-01 (v1.1):** Added RLS policies for 8 new tables: compliance_clocks_universal, compliance_clock_dashboard, escalation_workflows, permit_workflows, permit_variations, permit_surrenders, recurrence_trigger_executions, corrective_action_items, validation_executions
 - **2024-12-27 (v1.0):** Initial version with schema alignment fixes
 
@@ -6070,19 +6079,499 @@ interface RLSPolicyConfig {
 
 ---
 
+# 21. Enhanced Features V2 Tables RLS Policies
+
+**Added in v1.2 (2025-12-05):** RLS policies for 11 Enhanced Features V2 tables.
+
+## 21.1 Evidence Gaps Table
+
+**Table:** `evidence_gaps`
+**RLS Enabled:** Yes
+**Module:** Core (no module restriction)
+
+### Policies Summary:
+- **SELECT:** `evidence_gaps_company_isolation` - Company access
+- **INSERT:** `evidence_gaps_insert_staff` - Staff+ roles
+- **UPDATE:** `evidence_gaps_update_staff` - Staff+ roles
+- **DELETE:** `evidence_gaps_delete_admin` - Admin/Owner only
+
+```sql
+CREATE POLICY evidence_gaps_company_isolation ON evidence_gaps
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.2 Content Embeddings Table
+
+**Table:** `content_embeddings`
+**RLS Enabled:** Yes
+**Module:** Core (AI feature)
+
+### Policies Summary:
+- **SELECT:** `content_embeddings_company_isolation` - Company access
+- **INSERT/UPDATE:** System-only (generated via background jobs)
+- **DELETE:** System-only
+
+```sql
+CREATE POLICY content_embeddings_company_isolation ON content_embeddings
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.3 Compliance Risk Scores Table
+
+**Table:** `compliance_risk_scores`
+**RLS Enabled:** Yes
+**Module:** Core (analytics feature)
+
+### Policies Summary:
+- **SELECT:** `compliance_risk_scores_company_isolation` - Company access
+- **INSERT/UPDATE:** System-only (calculated via jobs)
+- **DELETE:** System-only
+
+```sql
+CREATE POLICY compliance_risk_scores_company_isolation ON compliance_risk_scores
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.4 Compliance Risk History Table
+
+**Table:** `compliance_risk_history`
+**RLS Enabled:** Yes
+**Module:** Core (analytics feature)
+
+```sql
+CREATE POLICY compliance_risk_history_company_isolation ON compliance_risk_history
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.5 Obligation Costs Table
+
+**Table:** `obligation_costs`
+**RLS Enabled:** Yes
+**Module:** Core
+
+### Policies Summary:
+- **SELECT:** Company access
+- **INSERT:** Staff+ roles
+- **UPDATE:** Staff+ roles
+- **DELETE:** Admin/Owner only
+
+```sql
+CREATE POLICY obligation_costs_company_isolation ON obligation_costs
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.6 Compliance Budgets Table
+
+**Table:** `compliance_budgets`
+**RLS Enabled:** Yes
+**Module:** Core
+
+```sql
+CREATE POLICY compliance_budgets_company_isolation ON compliance_budgets
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.7 Activity Feed Table
+
+**Table:** `activity_feed`
+**RLS Enabled:** Yes
+**Module:** Core
+
+### Policies Summary:
+- **SELECT:** Company access
+- **INSERT:** Any authenticated user in company
+- **UPDATE/DELETE:** Not permitted (immutable feed)
+
+```sql
+CREATE POLICY activity_feed_company_isolation ON activity_feed
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.8 Calendar Tokens Table
+
+**Table:** `calendar_tokens`
+**RLS Enabled:** Yes
+**Module:** Core
+
+### Access Logic:
+- Users can only manage their own calendar tokens
+- Company-level tokens visible to Admin/Owner
+
+```sql
+CREATE POLICY calendar_tokens_company_isolation ON calendar_tokens
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.9 Evidence Suggestions Table
+
+**Table:** `evidence_suggestions`
+**RLS Enabled:** Yes
+**Module:** Core (AI feature)
+
+```sql
+CREATE POLICY evidence_suggestions_company_isolation ON evidence_suggestions
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.10 Obligation Completion Metrics Table
+
+**Table:** `obligation_completion_metrics`
+**RLS Enabled:** Yes
+**Module:** Core
+
+```sql
+CREATE POLICY obligation_completion_metrics_company_isolation ON obligation_completion_metrics
+    FOR ALL USING (
+        company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+    );
+```
+
+## 21.11 Webhook Deliveries Table
+
+**Table:** `webhook_deliveries`
+**RLS Enabled:** Yes
+**Module:** Core
+
+### Access Logic:
+- Access through parent webhook's company_id
+
+```sql
+CREATE POLICY webhook_deliveries_company_isolation ON webhook_deliveries
+    FOR ALL USING (
+        webhook_id IN (
+            SELECT id FROM webhooks WHERE company_id IN (
+                SELECT company_id FROM users WHERE id = auth.uid()
+            )
+        )
+    );
+```
+
+---
+
+# 22. Regulatory Pack Engine Tables RLS Policies
+
+**Added in v1.2 (2025-12-05):** RLS policies for 14 Regulatory Pack Engine tables.
+
+## 22.1 Company Relaxed Rules Table
+
+**Table:** `company_relaxed_rules`
+**RLS Enabled:** Yes
+**Module:** Core (Pack Engine)
+
+```sql
+CREATE POLICY company_relaxed_rules_policy ON company_relaxed_rules
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.2 ELV Conditions Table
+
+**Table:** `elv_conditions`
+**RLS Enabled:** Yes
+**Module:** Module 1/3 (Environmental Permits, MCPD)
+
+### Access Logic:
+- Company-based isolation
+- Requires permit-verbatim text (Safeguard 3)
+
+```sql
+CREATE POLICY elv_conditions_policy ON elv_conditions
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.3 ELV Monitoring Results Table
+
+**Table:** `elv_monitoring_results`
+**RLS Enabled:** Yes
+**Module:** Module 1/3
+
+```sql
+CREATE POLICY elv_monitoring_results_policy ON elv_monitoring_results
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.4 CCS Risk Categories Table
+
+**Table:** `ccs_risk_categories`
+**RLS Enabled:** No (reference data)
+
+This is reference data for EA-defined risk categories (1=60pts, 2=31pts, 3=4pts, 4=0.1pts). All authenticated users can read.
+
+## 22.5 CCS Compliance Bands Table
+
+**Table:** `ccs_compliance_bands`
+**RLS Enabled:** No (reference data)
+
+This is reference data for compliance bands A-F. All authenticated users can read.
+
+## 22.6 CCS Assessments Table
+
+**Table:** `ccs_assessments`
+**RLS Enabled:** Yes
+**Module:** Core (Regulatory)
+
+```sql
+CREATE POLICY ccs_assessments_policy ON ccs_assessments
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.7 CCS Non-Compliances Table
+
+**Table:** `ccs_non_compliances`
+**RLS Enabled:** Yes
+**Module:** Core (Regulatory)
+
+### Access Logic:
+- Access through parent CCS assessment
+
+```sql
+CREATE POLICY ccs_non_compliances_policy ON ccs_non_compliances
+    FOR ALL USING (ccs_assessment_id IN (
+        SELECT id FROM ccs_assessments WHERE company_id IN (SELECT get_user_company_ids())
+    ));
+```
+
+## 22.8 Compliance Assessment Reports Table
+
+**Table:** `compliance_assessment_reports`
+**RLS Enabled:** Yes
+**Module:** Core (Regulatory)
+
+```sql
+CREATE POLICY cars_policy ON compliance_assessment_reports
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.9 Regulatory CAPAs Table
+
+**Table:** `regulatory_capas`
+**RLS Enabled:** Yes
+**Module:** Core (Regulatory)
+
+```sql
+CREATE POLICY regulatory_capas_policy ON regulatory_capas
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.10 Regulatory Incidents Table
+
+**Table:** `regulatory_incidents`
+**RLS Enabled:** Yes
+**Module:** Core (Regulatory)
+
+```sql
+CREATE POLICY regulatory_incidents_policy ON regulatory_incidents
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.11 Regulatory Packs Table
+
+**Table:** `regulatory_packs`
+**RLS Enabled:** Yes
+**Module:** Core (Pack Engine)
+
+```sql
+CREATE POLICY regulatory_packs_policy ON regulatory_packs
+    FOR ALL USING (company_id IN (SELECT get_user_company_ids()));
+```
+
+## 22.12 Board Pack Detail Requests Table
+
+**Table:** `board_pack_detail_requests`
+**RLS Enabled:** Yes
+**Module:** Core (Pack Engine - Safeguard 2)
+
+### Access Logic:
+- Access through parent regulatory pack
+
+```sql
+CREATE POLICY board_pack_requests_policy ON board_pack_detail_requests
+    FOR ALL USING (pack_id IN (
+        SELECT id FROM regulatory_packs WHERE company_id IN (SELECT get_user_company_ids())
+    ));
+```
+
+## 22.13 Tender Pack Incident Optins Table
+
+**Table:** `tender_pack_incident_optins`
+**RLS Enabled:** Yes
+**Module:** Core (Pack Engine - Safeguard 4)
+
+```sql
+CREATE POLICY tender_pack_optins_policy ON tender_pack_incident_optins
+    FOR ALL USING (pack_id IN (
+        SELECT id FROM regulatory_packs WHERE company_id IN (SELECT get_user_company_ids())
+    ));
+```
+
+## 22.14 Pack Readiness Rules Table
+
+**Table:** `pack_readiness_rules`
+**RLS Enabled:** No (reference data)
+
+This is reference data for 24 default validation rules. All authenticated users can read.
+
+---
+
+# 23. Ingestion Schema Tables RLS Policies
+
+**Added in v1.2 (2025-12-05):** RLS policies for 2 Ingestion Schema tables.
+
+## 23.1 Ingestion Sessions Table
+
+**Table:** `ingestion_sessions`
+**RLS Enabled:** Yes
+**Module:** Core (AI Extraction)
+
+### Policies Summary:
+- **SELECT:** Company access + Consultant client access
+- **INSERT:** System + Staff+ roles
+- **UPDATE:** System only
+
+```sql
+CREATE POLICY ingestion_sessions_select_policy ON ingestion_sessions
+    FOR SELECT
+    USING (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+        OR
+        company_id IN (
+            SELECT client_company_id FROM consultant_client_assignments
+            WHERE consultant_id = auth.uid() AND status = 'ACTIVE'
+        )
+    );
+
+CREATE POLICY ingestion_sessions_insert_policy ON ingestion_sessions
+    FOR INSERT
+    WITH CHECK (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+    );
+
+CREATE POLICY ingestion_sessions_update_policy ON ingestion_sessions
+    FOR UPDATE
+    USING (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+    );
+```
+
+## 23.2 Subjective Interpretations Table
+
+**Table:** `subjective_interpretations`
+**RLS Enabled:** Yes
+**Module:** Core (AI Extraction)
+
+### Policies Summary:
+- **SELECT:** Company access + Consultant client access
+- **INSERT:** Staff+ roles
+- **UPDATE:** Staff+ roles (version creates new record)
+
+```sql
+CREATE POLICY subjective_interpretations_select_policy ON subjective_interpretations
+    FOR SELECT
+    USING (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+        OR
+        company_id IN (
+            SELECT client_company_id FROM consultant_client_assignments
+            WHERE consultant_id = auth.uid() AND status = 'ACTIVE'
+        )
+    );
+
+CREATE POLICY subjective_interpretations_insert_policy ON subjective_interpretations
+    FOR INSERT
+    WITH CHECK (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+    );
+
+CREATE POLICY subjective_interpretations_update_policy ON subjective_interpretations
+    FOR UPDATE
+    USING (
+        company_id IN (
+            SELECT company_id FROM users WHERE id = auth.uid()
+        )
+    );
+```
+
+---
+
+# 24. Review Queue Enhancement Tables RLS Policies
+
+**Added in v1.2 (2025-12-05):** RLS policies for 1 Review Queue Enhancement table.
+
+## 24.1 Review Queue Escalation History Table
+
+**Table:** `review_queue_escalation_history`
+**RLS Enabled:** Yes
+**Module:** Core (Review Queue)
+
+### Policies Summary:
+- **SELECT:** Company members can view escalation history for their items
+- **INSERT:** System only (via service role)
+
+```sql
+-- Only company members can view escalation history for their items
+CREATE POLICY "Users can view escalation history for their company items"
+ON review_queue_escalation_history
+FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM review_queue_items rqi
+        JOIN users u ON u.company_id = rqi.company_id
+        WHERE rqi.id = review_queue_item_id
+        AND u.id = auth.uid()
+    )
+);
+
+-- Only system can insert escalation history (via service role)
+CREATE POLICY "System can insert escalation history"
+ON review_queue_escalation_history
+FOR INSERT
+TO service_role
+WITH CHECK (true);
+```
+
+---
+
 **Document Complete**
 
-This specification defines the complete RLS and permissions system for the EcoComply platform, including all 76 tables with RLS policies, complete CRUD matrices, permission evaluation logic, consultant isolation, service role handling, edge cases, performance considerations, deployment procedures, test cases, and TypeScript interfaces.
+This specification defines the complete RLS and permissions system for the EcoComply platform, including all 104 tables with RLS policies, complete CRUD matrices, permission evaluation logic, consultant isolation, service role handling, edge cases, performance considerations, deployment procedures, test cases, and TypeScript interfaces.
 
 **Document Status:** ✅ **COMPLETE**
 
-**Word Count:** ~16,000+ words
+**Word Count:** ~18,000+ words
 
-**Sections:** 20 comprehensive sections covering all aspects of RLS and permissions implementation
+**Sections:** 24 comprehensive sections covering all aspects of RLS and permissions implementation
 
-**Last Updated:** 2025-01-01
+**Last Updated:** 2025-12-05
 
-**Alignment:** ✅ Fully aligned with High Level Product Plan and Database Schema (20_Database_Schema.md)
+**Alignment:** ✅ Fully aligned with High Level Product Plan and Database Schema (01-schema.md v1.7)
 
-**Version:** 1.1 - Added RLS policies for all 21 new tables from hostile review
+**Version:** 1.2 - Added RLS policies for 28 new tables (Enhanced Features V2, Regulatory Pack Engine, Ingestion Schema, Review Queue Enhancement)
 

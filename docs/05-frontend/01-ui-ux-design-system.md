@@ -2,9 +2,9 @@
 
 **EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
 
-**Document Version:** 2.1  
-**Status:** Updated - Compliance Score System  
-**Created by:** Cursor  
+**Document Version:** 2.1
+**Status:** Updated - Compliance Score System
+**Created by:** Cursor
 **Depends on:**
 - ✅ User Workflow Maps (1.3) - Complete
 - ✅ Frontend Routes & Component Map (1.2) - Complete
@@ -14,6 +14,20 @@
 - ✅ Backend API Specification (1.4) - Complete
 
 **Purpose:** Defines the complete UI/UX design system for the EcoComply platform, including design tokens, component specifications, navigation patterns, mobile responsiveness, accessibility guidelines, and implementation details. This document ensures world-class design, Procore-inspired aesthetics, and optimal user experience across all devices.
+
+> ⚠️ **CONFIDENCE THRESHOLD UPDATE (2025-12-05)**
+>
+> The confidence badge thresholds in this document (85% for HIGH) have been superseded.
+>
+> **Authoritative source:** `docs/ingestion_prompts/UI_Specification_v1.0_Part3_Evidence_Confidence.md`
+>
+> **Current thresholds:**
+> - HIGH: ≥ 90% (Green badge)
+> - MEDIUM: ≥ 70% (Yellow badge)
+> - LOW: ≥ 50% (Orange badge)
+> - VERY_LOW: < 50% (Red badge)
+>
+> **Code implementation:** `lib/utils/status.ts` → `CONFIDENCE_THRESHOLDS`
 
 > [v2.1 UPDATE – Added Compliance Score Components – 2025-01-01]
 > - Added Section 3.5: Compliance Score Components

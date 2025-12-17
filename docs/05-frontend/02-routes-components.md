@@ -2,6 +2,27 @@
 
 **EcoComply v1.0 — Launch-Ready / Last updated: 2025-02-03**
 
+> [v1.8 UPDATE – Enhanced Features V2 Routes – 2025-02-05]
+> - Added Section 3.35: Regulatory Compliance Hub Routes
+>   - `/compliance` - Regulatory compliance dashboard with CCS overview
+>   - `/compliance/ccs` - CCS assessments list with filtering
+>   - `/compliance/ccs/[assessmentId]` - CCS assessment detail view
+>   - `/compliance/ccs/new` - Record new CCS assessment
+> - Added Section 3.36: Global Deadlines Routes
+>   - `/deadlines` - Global deadlines management with site/module filtering
+>   - Filter tabs: All, Overdue, This Week, This Month
+>   - Export and Calendar integration actions
+> - Added Section 3.37: Enhanced Evidence Routes
+>   - `/evidence` - Global evidence hub (already documented as Evidence Library)
+>   - `/evidence/[evidenceId]` - Evidence detail with chain of custody
+>   - `/evidence/expiring` - Expiring evidence alerts view
+>   - Chain of custody tab with export PDF support
+> - Added Section 3.38: Regulatory Packs Routes
+>   - `/packs/regulatory` - Regulatory pack management hub
+>   - `/packs/regulatory/[packId]` - Pack detail view
+>   - Pack generation wizard with readiness evaluation
+>   - Pack types: Regulator, Internal Audit, Board, Tender
+> - Total: 12 new pages documented
 > [v1.7 UPDATE – Module 1 & Module 2 Advanced Routes – 2025-02-03]
 > - Added Section 3.32: Module 1 Advanced Routes (Environmental Permits)
 >   - Enforcement Notices routes (list, create, detail, edit)
@@ -60,8 +81,8 @@
 > - Chunked Upload for Large Files
 > - API Integration Testing Patterns
 
-**Document Version:** 1.7
-**Status:** Updated - Module 1 & Module 2 Advanced Routes
+**Document Version:** 1.8
+**Status:** Updated - Enhanced Features V2 Routes
 **Created by:** Cursor
 **Depends on:**
 - ✅ Product Logic Specification (1.5) - Complete
@@ -6169,6 +6190,398 @@ const status = Math.abs(variancePercentage) <= 5 ? 'MATCHED' : 'DISCREPANCY';
 - Generic status badge with customizable colors and icons
 - Props: \`status\`, \`colorScheme\`, \`icon\`, \`size\`
 - Used by: All status fields across modules
+
+---
+
+## 3.35 Regulatory Compliance Hub Routes (NEW v1.8)
+
+Routes for EA Compliance Classification Scheme (CCS) management and regulatory dashboard.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Sections 8-10
+
+### Route: `/dashboard/compliance`
+
+**URL Pattern:** `/dashboard/compliance`
+**File:** `app/dashboard/compliance/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** Top-level regulatory compliance dashboard showing CCS overview and company-wide regulatory metrics.
+
+**Component Structure:**
+```
+ComplianceDashboardPage
+├── PageHeader (title, icon)
+├── RegulatoryStatsOverview
+│   ├── TotalSitesCard
+│   ├── ComplianceBandDistribution
+│   ├── ActiveIncidentsCard
+│   ├── UpcomingMonitoringCard
+│   └── PacksPendingCard
+└── QuickActions
+    ├── ViewCCSAssessments
+    ├── GenerateRegulatoryPack
+    └── ViewELVSummary
+```
+
+**Data Fetching:**
+- `useRegulatoryDashboardStats(companyId)` - Get company regulatory statistics
+- Query: `['regulatory-dashboard-stats', companyId]`
+- API: `GET /api/v1/regulatory/dashboard/stats?companyId={companyId}`
+
+**Features:**
+- Company-wide CCS band distribution chart
+- Active incidents and open CAPAs count
+- First Year Mode status indicator
+- Quick navigation to CCS, ELV, and Pack generation
+
+**Mobile Responsiveness:**
+- Stacked stat cards on mobile
+- Full-width charts
+
+---
+
+### Route: `/dashboard/compliance/ccs`
+
+**URL Pattern:** `/dashboard/compliance/ccs`
+**File:** `app/dashboard/compliance/ccs/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** List and manage CCS (Compliance Classification Scheme) assessments for all sites.
+
+**Component Structure:**
+```
+CcsAssessmentsPage
+├── PageHeader
+│   ├── Title + Icon
+│   └── Actions (YearSelector, RecordAssessmentButton)
+├── BandLegend (A-F bands with descriptions)
+└── AssessmentsList (grouped by site)
+    └── SiteGroup
+        ├── SiteHeader (name, link to site)
+        └── AssessmentsTable
+            ├── BandColumn (color-coded badge)
+            ├── ScoreColumn (points)
+            ├── AssessmentDateColumn
+            ├── AssessedByColumn (EA Officer/Self/Third Party)
+            ├── CARReferenceColumn
+            └── ActionsColumn (View Details)
+```
+
+**Data Fetching:**
+- `useCcsAssessments(companyId, year)` - List assessments
+- Query: `['ccs-assessments', companyId, year]`
+- API: `GET /api/v1/regulatory/ccs/assessments?companyId={}&year={}`
+
+**Features:**
+- Year filter selector (current year ± 4 years)
+- Compliance band color coding (A=green, F=red)
+- Grouped by site for easy navigation
+- Link to site-specific CCS detail pages
+
+**Compliance Bands:**
+- Band A: 0 points (Excellent) - Green
+- Band B: 1-30 points (Good) - Light Green
+- Band C: 31-60 points (Fair) - Lime
+- Band D: 61-100 points (Poor) - Yellow
+- Band E: 101-150 points (Very Poor) - Orange
+- Band F: >150 points (Unacceptable) - Red
+
+---
+
+### Route: `/dashboard/compliance/ccs/[assessmentId]`
+
+**URL Pattern:** `/dashboard/compliance/ccs/[assessmentId]`
+**File:** `app/dashboard/compliance/ccs/[assessmentId]/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** View detailed CCS assessment with breakdown and appeal information.
+
+**Data Fetching:**
+- `useCcsAssessmentDetail(assessmentId)` - Get assessment details
+- Query: `['ccs-assessment', assessmentId]`
+- API: `GET /api/v1/regulatory/ccs/assessments/{assessmentId}`
+
+**Features:**
+- Full assessment breakdown by category
+- Appeal deadline tracking
+- CAR reference linking
+- Historical comparison with previous years
+- Notes and observations
+
+---
+
+## 3.36 Global Deadlines Routes (NEW v1.8)
+
+Company-wide deadline management with filtering and export capabilities.
+
+### Route: `/dashboard/deadlines`
+
+**URL Pattern:** `/dashboard/deadlines`
+**File:** `app/dashboard/deadlines/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** View all compliance deadlines across all sites with filtering and grouping.
+
+**Component Structure:**
+```
+DeadlinesPage
+├── PageHeader
+│   ├── Title + Description
+│   └── Actions (ExportButton, CalendarButton)
+├── StatCardGrid
+│   ├── OverdueCard (danger variant, clickable filter)
+│   ├── ThisWeekCard (warning variant)
+│   ├── ThisMonthCard
+│   └── TotalActiveCard
+├── FilterSection
+│   ├── FilterTabs (All, Overdue, This Week, This Month)
+│   ├── SiteFilter (dropdown)
+│   └── ModuleFilter (dropdown)
+└── DeadlinesList (grouped by urgency)
+    ├── OverdueGroup (red border accent)
+    │   └── DeadlineRow[]
+    ├── ThisWeekGroup (warning border accent)
+    │   └── DeadlineRow[]
+    └── UpcomingGroup (gray border accent)
+        └── DeadlineRow[]
+```
+
+**Data Fetching:**
+- `useDeadlines(filters)` - List deadlines with filtering
+- Query: `['deadlines', filter, siteFilter, moduleFilter]`
+- API: `GET /api/v1/deadlines?filter[status]={}&filter[site_id]={}&filter[module_id]={}&filter[due_within]={}`
+- `useSites()` - Get sites for filter dropdown
+- Query: `['sites']`
+- API: `GET /api/v1/sites`
+
+**Filter Tabs:**
+- **All** - All active deadlines
+- **Overdue** - `filter[status]=OVERDUE`
+- **This Week** - `filter[due_within]=7`
+- **This Month** - `filter[due_within]=30`
+
+**DeadlineRow Component:**
+- Status indicator dot (red=overdue, yellow=soon, green=ok)
+- Obligation title (truncated)
+- Site name with icon
+- Days remaining (bold, color-coded)
+- Due date formatted
+- Click to navigate to obligation detail
+
+**Features:**
+- Real-time countdown display
+- Color-coded urgency indicators
+- Site and module filtering
+- Export to Excel/CSV
+- Calendar view integration
+- Empty state with success message when no overdue
+
+**Mobile Responsiveness:**
+- Stat cards: 2-column on mobile, 4-column on desktop
+- Filter tabs scroll horizontally on mobile
+- Compact deadline rows on mobile
+
+---
+
+## 3.37 Enhanced Evidence Routes (NEW v1.8)
+
+Evidence detail view with chain of custody and AI suggestions.
+
+### Route: `/dashboard/evidence/[evidenceId]`
+
+**URL Pattern:** `/dashboard/evidence/[evidenceId]`
+**File:** `app/dashboard/evidence/[evidenceId]/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** View evidence details, chain of custody, and manage obligation linkages.
+
+**Component Structure:**
+```
+EvidenceDetailPage
+├── Breadcrumbs (Dashboard > Evidence > {fileName})
+├── PageHeader
+│   ├── Title (file name)
+│   ├── Description
+│   └── Actions
+│       ├── ChainOfCustodyExportButton
+│       ├── DownloadButton
+│       └── LinkToObligationButton
+├── TabNavigation
+│   ├── DetailsTab
+│   ├── ChainOfCustodyTab
+│   └── SuggestionsTab
+└── TabContent
+    ├── DetailsTab
+    │   ├── PreviewPane (image/PDF/placeholder)
+    │   └── MetadataPanel
+    │       ├── FileInfoSection
+    │       ├── LinkedObligationsSection
+    │       └── IntegrityStatusSection
+    ├── ChainOfCustodyTab
+    │   └── ChainOfCustodyComponent
+    │       ├── EvidenceMetadata
+    │       ├── HashVerificationStatus
+    │       ├── EventsTimeline
+    │       └── LinkedObligationsList
+    └── SuggestionsTab
+        └── AISuggestionsPlaceholder
+```
+
+**Data Fetching:**
+- `useEvidenceDetail(evidenceId)` - Get evidence with relations
+- Query: `['evidence', evidenceId]`
+- API: `GET /api/v1/evidence/{evidenceId}`
+- `useChainOfCustody(evidenceId)` - Get custody events
+- Query: `['evidence', evidenceId, 'chain-of-custody']`
+- API: `GET /api/v1/evidence/{evidenceId}/chain-of-custody`
+
+**Features:**
+- File preview (images, PDFs)
+- Chain of custody timeline with events
+- File hash verification status
+- Linked obligations management
+- PDF export of chain of custody
+- AI-powered linking suggestions (future)
+
+**Chain of Custody Events:**
+- `UPLOADED` - Initial upload
+- `ACCESSED` - File viewed
+- `DOWNLOADED` - File downloaded
+- `LINKED` - Linked to obligation
+- `UNLINKED` - Unlinked from obligation
+- `VERIFIED` - Hash verification performed
+
+---
+
+### Route: `/dashboard/evidence/expiring`
+
+**URL Pattern:** `/dashboard/evidence/expiring`
+**File:** `app/dashboard/evidence/expiring/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** View evidence items approaching or past their expiry dates.
+
+**Data Fetching:**
+- `useExpiringEvidence()` - Get expiring evidence
+- Query: `['evidence', 'expiring']`
+- API: `GET /api/v1/evidence?filter[expiring]=true`
+
+**Features:**
+- Expiry countdown display
+- Filter by expiry timeframe
+- Quick actions to renew/replace evidence
+
+---
+
+## 3.38 Regulatory Packs Routes (NEW v1.8)
+
+EA-compliant regulatory pack generation and management.
+
+### Route: `/dashboard/packs/regulatory`
+
+**URL Pattern:** `/dashboard/packs/regulatory`
+**File:** `app/dashboard/packs/regulatory/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** Generate and manage EA-compliant regulatory packs with readiness checks.
+
+**Component Structure:**
+```
+RegulatoryPacksPage
+├── PageHeader
+│   ├── Title + Icon (Package)
+│   ├── Description
+│   └── GeneratePackButton
+├── FilterBar
+│   ├── TypeFilter (dropdown)
+│   └── StatusFilter (dropdown)
+├── PacksList
+│   └── PackCard
+│       ├── PackInfo
+│       │   ├── TypeIcon + Label
+│       │   ├── GenerationDate
+│       │   ├── SiteCount
+│       │   └── SitesTags
+│       ├── StatusBadge (Draft/Generating/Ready/Failed/Expired)
+│       ├── Actions (View, Download)
+│       └── RuleResultsSummary
+│           ├── BlockingFailuresCount
+│           ├── WarningsCount
+│           └── PassedRulesCount
+└── PackGenerationWizard (modal)
+    ├── Step1: PackTypeSelection
+    ├── Step2: SiteSelection
+    ├── Step3: ConfigurationOptions
+    ├── Step4: ReadinessEvaluation
+    └── Step5: Generation
+```
+
+**Data Fetching:**
+- `useRegulatoryPacks(companyId, filters)` - List packs
+- Query: `['regulatory-packs', companyId, filterStatus, filterType]`
+- API: `GET /api/v1/regulatory/packs?companyId={}&status={}&packType={}`
+- Polling: 5000ms when any pack is GENERATING
+
+**Pack Types:**
+- `REGULATOR_PACK` - 🏛️ For EA submissions
+- `INTERNAL_AUDIT_PACK` - 📋 Internal audit documentation
+- `BOARD_PACK` - 📊 Board reporting pack
+- `TENDER_PACK` - 📁 Tender documentation
+
+**Pack Statuses:**
+- `DRAFT` - Gray, FileText icon
+- `GENERATING` - Yellow, Clock icon (animated)
+- `READY` - Green, CheckCircle icon
+- `FAILED` - Red, AlertCircle icon
+- `EXPIRED` - Gray, AlertTriangle icon
+
+**Features:**
+- Pack type and status filtering
+- Real-time generation status polling
+- Readiness evaluation before generation
+- Rule result summary (blocking failures, warnings, passed)
+- Download ready packs
+- View pack contents and details
+
+**PackGenerationWizard Component:**
+- Modal wizard with 5 steps
+- Step 1: Select pack type
+- Step 2: Select sites to include
+- Step 3: Configure options (date range, include evidence, etc.)
+- Step 4: Readiness evaluation (shows blocking failures and warnings)
+- Step 5: Generate pack with progress indicator
+
+**Readiness Evaluation Response:**
+```typescript
+interface ReadinessResult {
+  canGenerate: boolean;
+  blockingFailures: { rule: string; message: string; affectedItems: string[] }[];
+  warnings: { rule: string; message: string; affectedItems: string[] }[];
+  passedRules: string[];
+}
+```
+
+---
+
+### Route: `/dashboard/packs/regulatory/[packId]`
+
+**URL Pattern:** `/dashboard/packs/regulatory/[packId]`
+**File:** `app/dashboard/packs/regulatory/[packId]/page.tsx`
+**Access:** Authenticated users
+
+**Purpose:** View regulatory pack details, contents, and download.
+
+**Data Fetching:**
+- `useRegulatoryPackDetail(packId)` - Get pack details
+- Query: `['regulatory-pack', packId]`
+- API: `GET /api/v1/regulatory/packs/{packId}`
+
+**Features:**
+- Pack contents listing
+- Generation rule results detail
+- Download pack as ZIP
+- View included documents and evidence
+- Share pack with secure token
 
 ---
 

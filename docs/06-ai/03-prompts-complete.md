@@ -1,7 +1,7 @@
 # AI Microservice Prompts
 ## EcoComply Platform — Modules 1–4
-**Document Version: 1.2**  
-**Status: Implemented**  
+**Document Version: 1.2**
+**Status: Implemented**
 **Depends On:**
 - AI Layer Design & Cost Optimization (1.5a)
 - AI Extraction Rules Library (1.6)
@@ -9,6 +9,20 @@
 - Canonical Dictionary (1.4)
 
 **Purpose:** Complete prompt templates for all AI microservice operations across all four modules
+
+> ⚠️ **CONFIDENCE THRESHOLD UPDATE (2025-12-05)**
+>
+> The confidence thresholds in this document (85% for HIGH) have been superseded by the Regulatory Methodology Handbook.
+>
+> **Authoritative source:** `docs/09-regulatory/01-methodology-handbook.md` - Section 7 (Confidence Scoring)
+>
+> **Current thresholds:**
+> - HIGH: ≥ 90% (0.90)
+> - MEDIUM: ≥ 70% (0.70)
+> - LOW: ≥ 50% (0.50)
+> - VERY_LOW: < 50%
+>
+> **Code implementation:** `lib/utils/status.ts` → `CONFIDENCE_THRESHOLDS`
 
 > [v1.2 UPDATE – Added Module 4 (Hazardous Waste) Support – 2025-01-01]
 > - Added consignment note extraction prompt

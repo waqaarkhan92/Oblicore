@@ -1,13 +1,32 @@
 # AI Extraction Rules Library
 ## EcoComply Platform — Modules 1–4
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
 
-**Document Version:** 1.2  
-**Status:** Updated  
-**Depends On:** Product Logic Specification (PLS), Canonical Dictionary, AI Layer Design & Cost Optimization, High Level Product Plan (01)  
+**Document Version:** 1.3
+**Status:** Updated
+**Depends On:** Product Logic Specification (PLS), Canonical Dictionary, AI Layer Design & Cost Optimization, High Level Product Plan (01), **Regulatory Methodology Handbook v2.0**
 **Purpose:** Technical specification for the rule library system, pattern matching algorithms, and learning mechanisms
 
+> ⚠️ **ENUM ALIGNMENT UPDATE (2025-12-05)**
+>
+> The `category` and `condition_type` ENUMs in this document have been aligned with the authoritative **Regulatory Methodology Handbook v2.0**.
+>
+> **Authoritative sources:**
+> - `docs/09-regulatory/01-methodology-handbook.md` - Section 6.2 (21-value condition_type ENUM)
+> - `docs/09-regulatory/prompts/README.md` - Frozen prompt specifications
+>
+> **Key changes:**
+> - `category` field now uses the 21-value `condition_type` ENUM
+> - Old 5-value category enum (MONITORING|REPORTING|RECORD_KEEPING|OPERATIONAL|MAINTENANCE) is DEPRECATED
+> - All 4 UK jurisdictions (EA, NRW, SEPA, NIEA) now supported
+> - 11 Water Companies added for Trade Effluent (Module 2)
+
+> [v1.3 UPDATE – ENUM Alignment with Regulatory Methodology Handbook v2.0 – 2025-12-05]
+> - Updated category ENUM from 5 values to 21-value condition_type
+> - Added NIEA regulator support
+> - Added all 11 Water Companies for Module 2
+> - Added jurisdiction-specific terminology (e.g., "special waste" for Scotland)
 > [v1.2 UPDATE – Added Module 4 Support – 2025-01-01]
 > Module 4 (Hazardous Waste) patterns added:
 > - Waste stream classification patterns
@@ -78,20 +97,24 @@ Every rule pattern in the library follows this structure:
   },
   
   "extraction_template": {
-    "category": "MONITORING|REPORTING|RECORD_KEEPING|OPERATIONAL|MAINTENANCE",
+    "condition_type": "OPERATIONAL|EMISSION_LIMIT|MONITORING|REPORTING|RECORD_KEEPING|NOTIFICATION|IMPROVEMENT|PRE_OPERATIONAL|CESSATION|FINANCIAL_PROVISION|SITE_PROTECTION|MANAGEMENT_SYSTEM|WASTE_ACCEPTANCE|WASTE_HANDLING|POLLUTION_PREVENTION|RESOURCE_EFFICIENCY|ACCIDENT_MANAGEMENT|NOISE_VIBRATION|ODOUR|CLIMATE_ADAPTATION|BAT_REQUIREMENT",
     "frequency": "DAILY|WEEKLY|MONTHLY|QUARTERLY|ANNUAL|ONE_TIME|CONTINUOUS|EVENT_TRIGGERED|null",
     "deadline_relative": "string|null",
     "is_subjective": "boolean",
     "subjective_phrases": ["string array"],
     "evidence_types": ["string array"],
-    "condition_type": "STANDARD|SITE_SPECIFIC|IMPROVEMENT|ELV|PARAMETER_LIMIT|RUN_HOUR_LIMIT|REPORTING"
+    "permit_condition_classification": "STANDARD|SITE_SPECIFIC|IMPROVEMENT|ELV|PARAMETER_LIMIT|RUN_HOUR_LIMIT|REPORTING"
   },
+
+  // NOTE: The `condition_type` ENUM (21 values) is defined in the Regulatory Methodology Handbook v2.0
+  // See: docs/REGULATORY_METHODOLOGY_HANDBOOK.md Section 6.2
   
   "applicability": {
     "module_types": ["MODULE_1", "MODULE_2", "MODULE_3", "MODULE_4", ...],  // Array of module codes (can include any module_code from modules table)
-    "regulators": ["EA", "SEPA", "NRW", "WATER_COMPANY"],
-    "document_types": ["ENVIRONMENTAL_PERMIT", "TRADE_EFFLUENT_CONSENT", "MCPD_REGISTRATION"],
-    "water_companies": ["string array (for Module 2: Thames Water, Severn Trent, etc.)"]
+    "regulators": ["EA", "NRW", "SEPA", "NIEA", "WATER_COMPANY"],  // All 4 UK environmental regulators + water companies
+    "jurisdiction": ["ENGLAND", "WALES", "SCOTLAND", "NORTHERN_IRELAND"],  // Optional: filter by jurisdiction
+    "document_types": ["ENVIRONMENTAL_PERMIT", "TRADE_EFFLUENT_CONSENT", "MCPD_REGISTRATION", "CONSIGNMENT_NOTE"],
+    "water_companies": ["Thames Water", "Severn Trent", "United Utilities", "Anglian Water", "Yorkshire Water", "Northumbrian Water", "Southern Water", "South West Water", "Wessex Water", "Dŵr Cymru", "Scottish Water"]  // All 11 water companies
   },
   
   **Note:** The `module_types` array is flexible and can include any `module_code` from the `modules` table. To add patterns for a new module (e.g., Module 4 - Packaging), simply add the module code to the array.
@@ -1350,11 +1373,26 @@ function calculateFinalConfidence(
 
 ## 7.4 Threshold Application
 
+> ⚠️ **CONFIDENCE THRESHOLDS SUPERSEDED**
+>
+> The thresholds below have been superseded by the Regulatory Methodology Handbook v2.0.
+>
+> **Authoritative source:** `docs/REGULATORY_METHODOLOGY_HANDBOOK.md` Section 7
+>
+> **Current thresholds:**
+> - HIGH: ≥ 0.90 (90%) - Auto-accept
+> - MEDIUM: ≥ 0.70 (70%) - Flag for review
+> - LOW: ≥ 0.50 (50%) - Require review
+> - VERY_LOW: < 0.50 - Escalation required
+>
+> **Escalation Threshold:** `overall_score < 0.7` triggers human review
+
 | Final Confidence | Action | UI Treatment |
 |------------------|--------|--------------|
-| ≥85% | Auto-accept | Shown as "Confirmed" |
-| 70-84% | Flag for review | Yellow highlight |
-| <70% | Require review | Red highlight, blocking |
+| ≥90% | Auto-accept | Shown as "Confirmed" (HIGH) |
+| 70-89% | Flag for review | Yellow highlight (MEDIUM) |
+| 50-69% | Require review | Orange highlight (LOW) |
+| <50% | Escalation required | Red highlight, blocking (VERY_LOW) |
 
 ---
 
@@ -2095,8 +2133,8 @@ async function processReviewCompletion(
 
 **END OF DOCUMENT**
 
-*Document Version: 1.1*  
-*Last Updated: 2025-01-29*  
-*Implementation Status: Complete*  
-*Generated for: EcoComply Platform*  
-*Source Documents: Product Logic Specification (PLS), Canonical Dictionary, AI Layer Design & Cost Optimization*
+*Document Version: 1.3*
+*Last Updated: 2025-12-05*
+*Implementation Status: Complete*
+*Generated for: EcoComply Platform*
+*Source Documents: Product Logic Specification (PLS), Canonical Dictionary, AI Layer Design & Cost Optimization, **Regulatory Methodology Handbook v2.0***

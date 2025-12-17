@@ -1,12 +1,30 @@
 # AI Layer Design & Cost Optimization
 ## EcoComply Platform — Modules 1–4
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
 
-**Document Version:** 1.2  
-**Status:** Implemented  
-**Depends On:** Product Logic Specification (PLS), Canonical Dictionary  
+**Document Version:** 1.3
+**Status:** Implemented
+**Depends On:** Product Logic Specification (PLS), Canonical Dictionary, **Regulatory Methodology Handbook v2.0**
 **Purpose:** Technical specification for AI integration layer, prompt engineering, and cost optimization
+
+> [v1.3 UPDATE – Confidence Threshold Alignment – 2025-12-05]
+> - Updated all confidence thresholds from 85% to 90% for HIGH
+> - Added reference to Regulatory Methodology Handbook v2.0
+
+> ⚠️ **CONFIDENCE THRESHOLD UPDATE (2025-12-05)**
+>
+> The confidence thresholds in this document have been updated to align with the **Regulatory Methodology Handbook v2.0**.
+>
+> **Authoritative source:** `docs/09-regulatory/01-methodology-handbook.md` - Section 7 (Confidence Scoring)
+>
+> **Current thresholds:**
+> - HIGH: ≥ 0.90 (90%)
+> - MEDIUM: ≥ 0.70 (70%)
+> - LOW: ≥ 0.50 (50%)
+> - VERY_LOW: < 0.50
+>
+> **Code implementation:** `lib/utils/status.ts` → `CONFIDENCE_THRESHOLDS`
 
 > [v1.2 UPDATE – Added Module 4 (Hazardous Waste) Support – 2025-01-01]
 > - Updated all module references to include Module 4
@@ -145,7 +163,7 @@ export const AI_CONFIG = {
     segmentationThreshold: 800_000, // Only segment if >800k tokens
     maxSegmentSize: 500_000,
     minConfidence: 0.70,
-    autoAcceptThreshold: 0.85
+    autoAcceptThreshold: 0.90  // Updated to align with Regulatory Methodology Handbook v2.0
   }
 };
 ```
@@ -1079,9 +1097,10 @@ SCORING COMPONENTS (weights):
 - Source Quality (10%): OCR confidence (100% for native PDF)
 
 THRESHOLDS:
-- ≥85%: Auto-accept
-- 70-84%: Flag for review
-- <70%: Require review before proceeding
+- ≥90%: Auto-accept (HIGH)
+- 70-89%: Flag for review (MEDIUM)
+- 50-69%: Require review (LOW)
+- <50%: Escalation required (VERY_LOW)
 
 OUTPUT: JSON with confidence_score and component breakdown.
 ```
@@ -1105,7 +1124,7 @@ Respond with JSON:
     "semantic_coherence": number,
     "source_quality": number
   },
-  "review_reason": "string|null (if score <85%)"
+  "review_reason": "string|null (if score <90%)"
 }
 ```
 
@@ -1311,7 +1330,7 @@ function buildSimplifiedPrompt(document: Document): ExtractionPrompt {
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ STEP 9: CONFIDENCE SCORING                                                   │
 │ - Calculate confidence per obligation                                        │
-│ - Apply thresholds: ≥85% auto-accept, 70-84% review, <70% blocking           │
+│ - Apply thresholds: ≥90% auto-accept (HIGH), 70-89% review (MEDIUM), <70% escalation │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -2047,7 +2066,7 @@ async function validateGrounding(
   // Fuzzy match for OCR variations
   const fuzzyScore = calculateFuzzyMatch(obligation.text, documentText);
   
-  if (fuzzyScore >= 0.85) {
+  if (fuzzyScore >= 0.90) {
     return {
       isGrounded: true,
       sourceText: findClosestMatch(obligation.text, documentText),
@@ -2072,7 +2091,7 @@ The following patterns trigger hallucination alerts:
 
 | Trigger | Detection Method | Action |
 |---------|-----------------|--------|
-| Extracted text not in source | Fuzzy match <85% | Flag with `hallucination_risk: true` |
+| Extracted text not in source | Fuzzy match <90% | Flag with `hallucination_risk: true` |
 | Numeric values inconsistent | Value range check | Flag for manual review |
 | Dates outside reasonable range | Date validation | Flag for manual review |
 | Categories inconsistent with document type | Type-category mapping | Auto-correct or flag |
@@ -2190,7 +2209,7 @@ Track extraction quality over time:
 interface ExtractionQualityMetrics {
   documentId: string;
   totalObligations: number;
-  highConfidenceCount: number;      // >=85%
+  highConfidenceCount: number;      // >=90% (HIGH)
   mediumConfidenceCount: number;    // 70-84%
   lowConfidenceCount: number;       // <70%
   hallucinationRiskCount: number;
@@ -2203,8 +2222,8 @@ async function calculateQualityMetrics(
   documentId: string,
   obligations: ExtractedObligation[]
 ): Promise<ExtractionQualityMetrics> {
-  const highConfidence = obligations.filter(o => o.confidence_score >= 0.85);
-  const mediumConfidence = obligations.filter(o => o.confidence_score >= 0.70 && o.confidence_score < 0.85);
+  const highConfidence = obligations.filter(o => o.confidence_score >= 0.90);
+  const mediumConfidence = obligations.filter(o => o.confidence_score >= 0.70 && o.confidence_score < 0.90);
   const lowConfidence = obligations.filter(o => o.confidence_score < 0.70);
   const hallucinationRisks = obligations.filter(o => o.hallucination_risk);
   
@@ -2331,7 +2350,7 @@ async function calculateQualityMetrics(
 - [ ] Test with sample permits from each module ⚠️ Manual testing required
 - [ ] Benchmark extraction accuracy ⚠️ Performance monitoring in place
 - [x] Optimise prompt token usage ✅ All prompts optimized per spec
-- [x] Tune confidence thresholds ✅ 70%/85% thresholds implemented
+- [x] Tune confidence thresholds ✅ 70%/90% thresholds implemented (updated per Regulatory Methodology Handbook v2.0)
 
 ---
 

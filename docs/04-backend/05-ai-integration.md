@@ -3,9 +3,9 @@
 
 **EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
 
-**Document Version:** 1.1  
-**Status:** Complete  
-**Created by:** Cursor  
+**Document Version:** 1.1
+**Status:** Complete
+**Created by:** Cursor
 **Depends on:**
 - ✅ AI Microservice Prompts (1.7) - Complete
 - ✅ AI Layer Design & Cost Optimization (1.5a) - Complete
@@ -14,6 +14,20 @@
 - ✅ Background Jobs Specification (2.3) - Complete
 
 **Purpose:** Defines the complete AI integration layer implementation for the EcoComply platform, including OpenAI API integration, cost optimization, confidence scoring, rule library integration, error handling, and background job integration.
+
+> ⚠️ **CONFIDENCE THRESHOLD UPDATE (2025-12-05)**
+>
+> The confidence thresholds in this document (0.85 for HIGH) have been superseded.
+>
+> **Authoritative source:** `docs/ingestion_prompts/UI_Specification_v1.0_Part3_Evidence_Confidence.md`
+>
+> **Current thresholds:**
+> - HIGH: ≥ 0.90 (90%)
+> - MEDIUM: ≥ 0.70 (70%)
+> - LOW: ≥ 0.50 (50%)
+> - VERY_LOW: < 0.50
+>
+> **Code implementation:** `lib/utils/status.ts` → `CONFIDENCE_THRESHOLDS`
 
 > [v1.1 UPDATE – Added Module 4 (Hazardous Waste) Support – 2025-01-01]
 > - Added consignment note transformation logic

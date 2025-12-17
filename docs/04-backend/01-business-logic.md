@@ -1,16 +1,35 @@
 # PRODUCT LOGIC SPECIFICATION (PLS)
 ## EcoComply Platform — Modules 1–4
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-02-03**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
 
-**Document Version:** 1.6
+**Document Version:** 1.7
 **Status:** Complete
 **Depends On:**
 - Commercial Master Plan (00)
 - High Level Product Plan (01) - v1.0
 - Database Schema (20) - v1.6
 - Database Canonical Dictionary (22) - v1.3
+- **Regulatory Methodology Handbook v2.0** (NEW)
 
+> ⚠️ **REGULATORY METHODOLOGY ALIGNMENT UPDATE (2025-12-05)**
+>
+> This document has been updated to align with the **Regulatory Methodology Handbook v2.0**.
+>
+> **Key changes in v1.7:**
+> - All 4 UK jurisdictions now supported: England (EA), Wales (NRW), Scotland (SEPA), Northern Ireland (NIEA)
+> - Confidence thresholds updated: 90% (HIGH), 70% (MEDIUM), 50% (LOW), <50% (VERY_LOW)
+> - Condition types expanded to 21-value ENUM (see Regulatory Methodology Handbook Section 6.2)
+> - 11 Water Companies added for Module 2 Trade Effluent
+> - "Special Waste" terminology for Scotland (not "Hazardous Waste")
+>
+> **Authoritative source for regulatory methodology:** `docs/REGULATORY_METHODOLOGY_HANDBOOK.md`
+
+> [v1.7 UPDATE – Regulatory Methodology Handbook v2.0 Alignment – 2025-12-05]
+> - Added NIEA (Northern Ireland) as fourth regulator
+> - Updated confidence thresholds from 85% to 90% for auto-accept
+> - Added reference to 21-value condition_type ENUM
+> - Added 11 Water Companies for Module 2
 > [v1.6 UPDATE – Module 1 & Module 2 Advanced Business Logic – 2025-02-03]
 > - Added Section C.1.11: Enforcement Notice Workflow Logic
 >   - State machine: ISSUED → IN_RESPONSE → CLOSED/APPEALED
@@ -184,26 +203,61 @@ Module activation rules are defined in the `modules` table (see Canonical Dictio
 
 ---
 
-## A.2 Obligation Categories
+## A.2 Obligation Categories (Condition Types)
 
-All obligations extracted from documents fall into one of five categories. Category determines default evidence types, monitoring frequencies, and escalation logic.
+> ⚠️ **EXPANDED TO 21-VALUE ENUM**
+>
+> The original 5-value category system has been expanded to a 21-value `condition_type` ENUM.
+> See **Regulatory Methodology Handbook v2.0 Section 6.2** for the complete definition.
+>
+> **Authoritative source:** `docs/REGULATORY_METHODOLOGY_HANDBOOK.md`
 
-### A.2.1 Category Definitions
+All obligations extracted from documents are classified using the 21-value `condition_type` ENUM. Condition type determines default evidence types, monitoring frequencies, and escalation logic.
 
-| Category | Definition | Examples | Default Frequency |
-|----------|------------|----------|-------------------|
-| **Monitoring** | Measuring, sampling, testing activities | pH testing, emissions monitoring, noise surveys | Daily/Weekly/Monthly |
-| **Reporting** | Submitting data/reports to regulators | Annual returns, exceedance notifications, AERs | Annual/Quarterly/Event-triggered |
-| **Record-Keeping** | Maintaining logs and documentation | Waste transfer notes, maintenance logs, training records | Ongoing/As-generated |
-| **Operational** | Day-to-day operational requirements | Operating hours, material handling, containment | Continuous/Ongoing |
-| **Maintenance** | Equipment servicing and upkeep | Stack testing, equipment calibration, repair records | Annual/6-monthly/Scheduled |
+### A.2.1 Condition Type Definitions (21 values)
 
-### A.2.2 Category Assignment Rules
+| Condition Type | Definition | Examples |
+|----------------|------------|----------|
+| **OPERATIONAL** | Day-to-day operational requirements | Operating hours, material handling, containment |
+| **EMISSION_LIMIT** | Numeric emission/discharge limits | ELVs, concentration limits |
+| **MONITORING** | Sampling, measurement, analysis requirements | pH testing, emissions monitoring, noise surveys |
+| **REPORTING** | Periodic or event-based reporting obligations | Annual returns, exceedance notifications, AERs |
+| **RECORD_KEEPING** | Documentation and retention requirements | Waste transfer notes, maintenance logs |
+| **NOTIFICATION** | Regulator notification triggers | Incident reporting, exceedance notifications |
+| **IMPROVEMENT** | Time-bound improvement programmes | Improvement conditions with deadlines |
+| **PRE_OPERATIONAL** | Pre-commencement requirements | Baseline surveys, pre-startup checks |
+| **CESSATION** | Closure and decommissioning requirements | Site closure plans, decommissioning |
+| **FINANCIAL_PROVISION** | Financial security/guarantee requirements | Financial bonds, insurance |
+| **SITE_PROTECTION** | Baseline/site condition requirements | Site condition reports |
+| **MANAGEMENT_SYSTEM** | EMS/quality system requirements | ISO 14001, management reviews |
+| **WASTE_ACCEPTANCE** | Waste acceptance criteria | WAC testing, pre-acceptance |
+| **WASTE_HANDLING** | Waste storage/treatment requirements | Storage limits, treatment methods |
+| **POLLUTION_PREVENTION** | Containment/prevention measures | Bunding, spill prevention |
+| **RESOURCE_EFFICIENCY** | Resource use/efficiency requirements | Water efficiency, energy use |
+| **ACCIDENT_MANAGEMENT** | Emergency/contingency requirements | Emergency plans, spill response |
+| **NOISE_VIBRATION** | Noise and vibration limits | dB limits, monitoring |
+| **ODOUR** | Odour management requirements | Odour management plans |
+| **CLIMATE_ADAPTATION** | Climate resilience requirements | Climate risk assessments |
+| **BAT_REQUIREMENT** | Best Available Techniques requirements | BAT-AELs, BAT conclusions |
 
-1. **LLM extracts category** based on obligation text during parsing
-2. **Confidence threshold:** ≥85% for auto-assignment; <85% flags for human review
-3. **Human override:** Users can change category at any time; override is logged
-4. **Default if uncertain:** Record-Keeping (lowest consequence for miscategorisation)
+### A.2.2 Legacy Category Mapping
+
+For backwards compatibility, the original 5-value categories map to condition types:
+
+| Legacy Category | Primary Condition Type(s) |
+|-----------------|---------------------------|
+| Monitoring | MONITORING, EMISSION_LIMIT |
+| Reporting | REPORTING, NOTIFICATION |
+| Record-Keeping | RECORD_KEEPING |
+| Operational | OPERATIONAL, POLLUTION_PREVENTION, WASTE_HANDLING |
+| Maintenance | MANAGEMENT_SYSTEM, RESOURCE_EFFICIENCY |
+
+### A.2.3 Condition Type Assignment Rules
+
+1. **LLM extracts condition_type** based on obligation text during parsing
+2. **Confidence threshold:** ≥90% for auto-assignment; <90% flags for human review
+3. **Human override:** Users can change condition_type at any time; override is logged
+4. **Default if uncertain:** RECORD_KEEPING (lowest consequence for miscategorisation)
 
 ---
 
@@ -236,7 +290,7 @@ Conditions are the building blocks of obligations. Each permit/consent/registrat
 - **Rule Library Pre-Check:** Before calling LLM, check rule library for pattern matches (≥90% confidence)
 - **LLM Extraction:** If no rule match, use LLM to extract obligations, parameters, run-hours, or consignment notes
 - **Confidence Scoring:** All extractions receive confidence scores (0-100%)
-- **Auto-Accept Threshold:** Extractions with confidence ≥85% are auto-accepted (user can still edit)
+- **Auto-Accept Threshold:** Extractions with confidence ≥90% are auto-accepted (user can still edit)
 
 **Fallback: Manual Structured Capture:**
 - **Fallback Triggers:**
@@ -270,19 +324,19 @@ Conditions are the building blocks of obligations. Each permit/consent/registrat
 - Pattern: "Schedule X", "Condition X.X", numbered lists
 - Treatment: Match against standard conditions library first; if match found (confidence ≥90%), use library version
 - **If no library match:** Try AI extraction; if AI fails or confidence <70%, fallback to manual entry
-- Human review trigger: No library match found AND AI extraction confidence <85%
+- Human review trigger: No library match found AND AI extraction confidence <90%
 
 **Site-Specific Conditions:**
 - Pattern: Conditions not matching standard library
 - Treatment: Full LLM extraction with mandatory human review
 - **If AI unavailable or confidence <70%:** Fallback to manual structured capture
-- Human review trigger: Always flagged (confidence <85%) OR AI unavailable
+- Human review trigger: Always flagged (confidence <90%) OR AI unavailable
 
 **Improvement Conditions:**
 - Pattern: Contains deadline date, "by [date]", "within [timeframe]", "improvement programme"
 - Treatment: Extract deadline date, create one-time schedule
 - **If AI unavailable or confidence <70%:** Fallback to manual entry with date picker
-- Human review trigger: Date parsing uncertainty, ambiguous deadline phrasing, OR confidence <85%
+- Human review trigger: Date parsing uncertainty, ambiguous deadline phrasing, OR confidence <90%
 
 ---
 
@@ -322,11 +376,18 @@ Confidence score (0–100%) represents the LLM's certainty in extraction accurac
 
 ### A.5.2 Confidence Thresholds
 
-| Threshold | Action | User Experience |
-|-----------|--------|-----------------|
-| **≥85%** | Auto-accept | Extraction shown as "Confirmed"; user can still edit |
-| **70–84%** | Flag for review | Yellow highlight; "Review recommended" label; user must review before proceeding |
-| **<70%** | Require review OR fallback to manual | Red highlight; "Low confidence - manual entry recommended"; system suggests manual entry as alternative |
+> ⚠️ **UPDATED TO ALIGN WITH REGULATORY METHODOLOGY HANDBOOK v2.0**
+>
+> See `docs/REGULATORY_METHODOLOGY_HANDBOOK.md` Section 7 for authoritative thresholds.
+
+| Threshold | Band | Action | User Experience |
+|-----------|------|--------|-----------------|
+| **≥90%** | HIGH | Auto-accept | Extraction shown as "Confirmed"; user can still edit |
+| **70–89%** | MEDIUM | Flag for review | Yellow highlight; "Review recommended" label; user must review before proceeding |
+| **50–69%** | LOW | Require review | Orange highlight; "Low confidence - review required" |
+| **<50%** | VERY_LOW | Escalation required | Red highlight; "Manual entry recommended"; system suggests manual entry as alternative |
+
+**Escalation Threshold:** `overall_score < 0.7` triggers human review queue
 
 ### A.5.3 Confidence Score Components
 
@@ -3214,7 +3275,7 @@ ISSUED (initial) → IN_RESPONSE (user submitting response) → CLOSED (resolved
    - Notice number must be unique per company
    - Notice date cannot be future date
    - Response deadline must be after notice date
-   - Regulator must be one of: EA, SEPA, NRW
+   - Regulator must be one of: EA, NRW, SEPA, NIEA
    - Notice types: WARNING, NOTICE, VARIATION, SUSPENSION, REVOCATION, PROSECUTION
    - Severity ranking: PROSECUTION > REVOCATION > SUSPENSION > NOTICE > VARIATION > WARNING
 
@@ -3269,7 +3330,7 @@ PENDING (initial) → UNDER_REVIEW (internal review) → APPROVED or REJECTED (f
    - Decision reference must be unique per company
    - Decision date cannot be future date
    - Decision types: PERMIT_APPLICATION, VARIATION, TRANSFER, SURRENDER
-   - Regulator required (EA, SEPA, NRW)
+   - Regulator required (EA, NRW, SEPA, NIEA)
    - Status must be PENDING on creation
 
 2. **State Transition Rules:**
@@ -5373,9 +5434,10 @@ Confidence Score = (Pattern Match × 0.4) + (Structure × 0.3) + (Semantic × 0.
 
 | Total Score | Action |
 |-------------|--------|
-| ≥85% | Auto-accept; show as "Confirmed" |
-| 70-84% | Flag for review; show as "Review Recommended" |
-| <70% | Require review; block until human confirms |
+| ≥90% | Auto-accept; show as "Confirmed" (HIGH) |
+| 70-89% | Flag for review; show as "Review Recommended" (MEDIUM) |
+| 50-69% | Require review; orange highlight (LOW) |
+| <50% | Escalation required; block until human confirms (VERY_LOW) |
 
 ## F.3 Subjective Language Detection
 

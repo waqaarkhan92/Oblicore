@@ -1,18 +1,22 @@
 # EcoComply Background Jobs Specification
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-01**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
 
-**Document Version:** 1.4
+**Document Version:** 1.5
 **Status:** Complete - Updated to Match Production Implementation
 **Created by:** Claude
 **Depends on:**
 - ✅ Product Logic Specification (1.1) - Complete
 - ✅ Database Schema (2.2 → 1.6) - Complete
 - ✅ Technical Architecture (2.1) - Complete
-- ✅ Backend API Specification (1.6) - Complete
+- ✅ Backend API Specification (1.7) - Complete
 
 **Purpose:** Defines all background job types, their triggers, execution logic, error handling, retry mechanisms, and integration points for the EcoComply platform.
 
+> [v1.5 UPDATE – Added 3 Enhanced Features V2 Jobs – 2025-12-05]
+> - Added Evidence Gap Detection Job (Section 17.1)
+> - Added Risk Score Calculation Job (Section 17.2)
+> - Added Review Queue Escalation Job (Section 17.3)
 > [v1.4 UPDATE – Added 6 Missing Production Jobs – 2025-02-03]
 > - Added Evidence Expiry Tracking Job
 > - Added Recurring Task Generation Job
@@ -44,7 +48,8 @@
 14. [Trigger Execution Jobs](#14-trigger-execution-jobs)
 15. [Job Infrastructure Details](#15-job-infrastructure-details)
 16. [Integration Points](#16-integration-points)
-17. [Error Handling & Logging](#17-error-handling--logging)
+17. [Enhanced Feature V2 Jobs](#17-enhanced-feature-v2-jobs)
+18. [Error Handling & Logging](#18-error-handling--logging)
 
 ---
 
@@ -119,7 +124,7 @@ Jobs are organized into dedicated queues based on function and priority:
 
 ## 1.2 Job Types Overview
 
-The EcoComply platform defines **32 job types** across multiple categories:
+The EcoComply platform defines **35 job types** across multiple categories:
 
 ### Complete Job Type Registry
 
@@ -153,13 +158,17 @@ The EcoComply platform defines **32 job types** across multiple categories:
 | 24 | Detect Breaches and Trigger Alerts | `sla-breach-alerts` | HIGH | Cron (every 15min) | Detect breaches/SLA misses, trigger critical notifications |
 | 25 | Execute Pending Recurrence Triggers | `trigger-execution` | NORMAL | Cron (hourly) | Execute event-based triggers |
 | 26 | Process Trigger Conditions | `trigger-execution` | NORMAL | Event-driven | Evaluate conditional triggers on events |
-| **v1.4 New Production Jobs (Section 18)** |
+| **v1.4 New Production Jobs (Section 16)** |
 | 27 | Evidence Expiry Tracking | `evidence-tracking` | NORMAL | Cron (daily 02:00) | Track evidence expiration dates and send reminders |
 | 28 | Recurring Task Generation | `recurring-tasks` | NORMAL | Cron (daily 03:00) | Generate task instances from recurring task definitions |
 | 29 | Report Generation | `report-generation` | NORMAL | API trigger | Generate compliance reports (PDF/Excel) |
 | 30 | Notification Delivery | `notification-delivery` | HIGH | Event-driven | Deliver queued notifications via email/SMS/push |
 | 31 | Digest Delivery | `digest-delivery` | NORMAL | Cron (daily 07:00) | Send daily/weekly digest emails to users |
 | 32 | Evidence Retention | `evidence-retention` | LOW | Cron (monthly) | Archive/delete evidence past retention period |
+| **v1.5 Enhanced Features V2 Jobs (Section 17)** |
+| 33 | Evidence Gap Detection | `evidence-tracking` | NORMAL | Cron (6-hourly) | Detect missing/insufficient evidence for upcoming deadlines |
+| 34 | Risk Score Calculation | `risk-scoring` | NORMAL | Cron (daily 04:00) | Calculate compliance risk scores for all sites |
+| 35 | Review Queue Escalation | `escalation-processing` | HIGH | Cron (4-hourly) | Auto-escalate stale review queue items |
 
 ### Queue Assignments by Priority
 
@@ -6365,9 +6374,267 @@ async function executeEvidenceRetention() {
 
 ---
 
-# 17. Error Handling & Logging
+# 17. Enhanced Feature V2 Jobs
 
-## 17.1 Structured Logging
+## 17.1 Evidence Gap Detection Job
+
+**Purpose:** Detects obligations with upcoming deadlines but missing or insufficient evidence, enabling proactive compliance management.
+
+**Reference:** Enhanced Features V2 - Evidence Gap Detection
+
+### Job Configuration
+
+| Property | Value |
+|----------|-------|
+| Job Type | `EVIDENCE_GAP_DETECTION` |
+| Queue | `evidence-tracking` |
+| Priority | NORMAL |
+| Trigger | Cron: `0 */6 * * *` (every 6 hours) |
+| Timeout | 600 seconds (10 minutes) |
+| Max Retries | 2 retry attempts |
+
+### Input Parameters
+
+```typescript
+interface EvidenceGapDetectionJobInput {
+  company_id?: UUID;    // Optional: Process specific company
+  look_ahead_days?: number;  // Default: 30 - Days ahead to check for deadlines
+}
+```
+
+### Execution Logic
+
+1. **Find Upcoming Deadlines**
+   - Query all obligations with deadlines in next `look_ahead_days`
+   - Exclude completed or N/A obligations
+
+2. **Analyze Evidence Status**
+   - Check each obligation for linked evidence
+   - Identify gap types:
+     - `NO_EVIDENCE`: No evidence linked at all
+     - `EXPIRED_EVIDENCE`: All linked evidence is expired
+     - `INSUFFICIENT_EVIDENCE`: Evidence exists but marked as insufficient
+
+3. **Calculate Severity**
+   - `CRITICAL`: Due within 7 days, no evidence
+   - `HIGH`: Due within 14 days, no evidence
+   - `MEDIUM`: Due within 30 days, no evidence
+   - `LOW`: Due within 30 days, expired/insufficient evidence
+
+4. **Create/Update Gap Records**
+   - Insert into `evidence_gaps` table
+   - Update severity if gap already exists
+   - Resolve gaps when evidence is added
+
+5. **Send Notifications**
+   - Create notifications for critical/high severity gaps
+   - Notify obligation owners and site managers
+
+### Database Tables
+
+- `obligations` - Source obligations to analyze
+- `deadlines` - Upcoming deadline dates
+- `obligation_evidence_links` - Evidence links
+- `evidence_items` - Evidence status/expiry
+- `evidence_gaps` - Gap records
+- `notifications` - User notifications
+
+### Output
+
+```typescript
+interface EvidenceGapDetectionResult {
+  gaps_detected: number;
+  gaps_resolved: number;
+  notifications_sent: number;
+  by_severity: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+```
+
+---
+
+## 17.2 Risk Score Calculation Job
+
+**Purpose:** Calculates daily compliance risk scores for all sites based on overdue items, evidence gaps, escalations, and historical patterns.
+
+**Reference:** Enhanced Features V2 - Risk Score Engine
+
+### Job Configuration
+
+| Property | Value |
+|----------|-------|
+| Job Type | `RISK_SCORE_CALCULATION` |
+| Queue | `risk-scoring` |
+| Priority | NORMAL |
+| Trigger | Cron: `0 4 * * *` (daily at 4 AM) |
+| Timeout | 900 seconds (15 minutes) |
+| Max Retries | 2 retry attempts |
+
+### Input Parameters
+
+```typescript
+interface RiskScoreCalculationJobInput {
+  company_id?: UUID;    // Optional: Process specific company
+  site_id?: UUID;       // Optional: Process specific site
+}
+```
+
+### Execution Logic
+
+1. **Gather Risk Factors**
+   For each site, collect:
+   - Overdue obligations count and severity
+   - Evidence gap count by severity
+   - Active escalation count
+   - Missed deadlines in last 90 days
+   - Compliance clock criticality distribution
+
+2. **Calculate Weighted Score**
+   ```
+   risk_score =
+     (overdue_weight * overdue_score) +
+     (evidence_gap_weight * gap_score) +
+     (escalation_weight * escalation_score) +
+     (historical_weight * historical_score)
+   ```
+
+   Default weights:
+   - Overdue obligations: 40%
+   - Evidence gaps: 25%
+   - Active escalations: 20%
+   - Historical performance: 15%
+
+3. **Determine Risk Band**
+   - `LOW` (0-25): Green - excellent compliance
+   - `MEDIUM` (26-50): Amber - some attention needed
+   - `HIGH` (51-75): Orange - significant issues
+   - `CRITICAL` (76-100): Red - immediate attention required
+
+4. **Store Results**
+   - Insert into `risk_scores` table with timestamp
+   - Track score history for trend analysis
+
+5. **Alert on Critical Changes**
+   - Notify site managers if risk band worsens
+   - Track consecutive high-risk days
+
+### Database Tables
+
+- `companies`, `sites` - Entities to score
+- `obligations`, `deadlines` - Compliance status
+- `evidence_gaps` - Evidence issues
+- `escalations` - Active escalations
+- `compliance_clocks_universal` - Clock status
+- `risk_scores` - Score records
+
+### Output
+
+```typescript
+interface RiskScoreCalculationResult {
+  sites_processed: number;
+  risk_band_distribution: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  alerts_triggered: number;
+}
+```
+
+---
+
+## 17.3 Review Queue Escalation Job
+
+**Purpose:** Auto-escalates stale review queue items that haven't been processed within SLA thresholds (48h/96h/168h).
+
+**Reference:** Enhanced Features V2 - AI Review Queue Escalation
+
+### Job Configuration
+
+| Property | Value |
+|----------|-------|
+| Job Type | `REVIEW_QUEUE_ESCALATION` |
+| Queue | `escalation-processing` |
+| Priority | HIGH |
+| Trigger | Cron: `0 */4 * * *` (every 4 hours) |
+| Timeout | 300 seconds (5 minutes) |
+| Max Retries | 2 retry attempts |
+
+### Input Parameters
+
+```typescript
+interface ReviewQueueEscalationJobInput {
+  company_id?: UUID;    // Optional: Process specific company
+}
+```
+
+### Execution Logic
+
+1. **Find Stale Items**
+   - Query review queue items with status `PENDING`
+   - Calculate hours since creation
+
+2. **Determine Escalation Level**
+   - `L1` (48+ hours): Initial escalation to team lead
+   - `L2` (96+ hours): Escalation to manager
+   - `L3` (168+ hours): Escalation to admin/compliance officer
+
+3. **Check Rate Limiting**
+   - Prevent notification spam: 24h between escalations per item
+   - Track escalation history
+
+4. **Flag High-Risk Items**
+   - Items with `hallucination_risk: true` get expedited escalation
+   - Reduce thresholds by 50% for risky extractions
+
+5. **Create Escalation Records**
+   - Insert into `review_queue_escalation_history`
+   - Update item's current escalation level
+
+6. **Send Notifications**
+   - Notify appropriate stakeholders based on level
+   - Include item context and time pending
+
+### Database Tables
+
+- `review_queue_items` - Items to check
+- `review_queue_escalation_history` - Escalation audit trail
+- `notifications` - Stakeholder notifications
+- `users` - Escalation recipients
+
+### Escalation Thresholds
+
+| Level | Hours Pending | Recipients |
+|-------|---------------|------------|
+| L1 | 48+ hours | Team Lead |
+| L2 | 96+ hours | Manager |
+| L3 | 168+ hours | Admin, Compliance Officer |
+
+### Output
+
+```typescript
+interface ReviewQueueEscalationResult {
+  items_escalated: number;
+  by_level: {
+    l1: number;
+    l2: number;
+    l3: number;
+  };
+  notifications_sent: number;
+  rate_limited: number;
+}
+```
+
+---
+
+# 18. Error Handling & Logging
+
+## 18.1 Structured Logging
 
 **Reference:** Technical Architecture Section 2.4 (Error Handling and Logging)
 
@@ -6436,7 +6703,7 @@ logJobOperation({
 });
 ```
 
-## 17.2 Error Logging
+## 18.2 Error Logging
 
 ### Audit Log Error Records
 
@@ -6525,7 +6792,7 @@ async function captureJobError(
 }
 ```
 
-## 17.3 Alerting
+## 18.3 Alerting
 
 ### Critical Job Failure Alerts
 
@@ -6583,7 +6850,7 @@ async function alertJobFailure(
 | CROSS_SELL_TRIGGER | INFO | None (low priority) |
 | AUDIT_PACK_GENERATION | ERROR | User who requested |
 
-## 17.4 Monitoring
+## 18.4 Monitoring
 
 ### Job Metrics
 
@@ -6683,7 +6950,7 @@ async function getJobSystemHealth(): Promise<{
 
 # Summary
 
-This complete specification defines all **25 background job types** for the EcoComply platform:
+This complete specification defines all **35 background job types** for the EcoComply platform:
 
 ## Complete Job Type Registry
 
@@ -6740,9 +7007,29 @@ This specification is organized into **17 main sections**:
 14. **Trigger Execution Jobs** - Recurrence trigger execution
 15. **Job Infrastructure Details** - Retry strategy, DLQ rules, health monitoring, status transitions, integration points
 16. **Integration Points** - See Section 15
-17. **Error Handling & Logging** - Structured logging, error capture, alerting, monitoring
+17. **Enhanced Feature V2 Jobs** - Evidence gap detection, risk scoring, review queue escalation
+18. **Error Handling & Logging** - Structured logging, error capture, alerting, monitoring
 
 ## Version History
+
+### Version 1.5 (2025-12-05)
+**Enhancement: Enhanced Features V2 Jobs**
+
+Added 3 new background jobs for Enhanced Features V2:
+
+**Evidence & Compliance Analytics:**
+- Evidence Gap Detection Job - Proactive detection of missing/insufficient evidence
+- Risk Score Calculation Job - Daily compliance risk scoring for all sites
+
+**AI Review Queue Management:**
+- Review Queue Escalation Job - Auto-escalation of stale AI extraction review items
+
+### Version 1.4 (2025-02-03)
+**Enhancement: Production Job Additions**
+
+Added 6 production jobs for notification delivery and evidence management:
+- Evidence Expiry Tracking, Recurring Task Generation, Report Generation
+- Notification Delivery, Digest Delivery, Evidence Retention
 
 ### Version 1.3 (2025-12-01)
 **Major Enhancement: Database Schema v1.3 Features**
@@ -6770,6 +7057,6 @@ Initial release with 13 core background jobs.
 
 ---
 
-**Document Status:** Complete - Enhanced with v1.3 Features
-**Last Updated:** 2025-12-01
-**Version:** 1.3
+**Document Status:** Complete - Enhanced with v1.5 Features
+**Last Updated:** 2025-12-05
+**Version:** 1.5

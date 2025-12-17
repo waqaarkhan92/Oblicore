@@ -1,9 +1,9 @@
 # Database Schema
 ## EcoComply Platform — Document 2.2
 
-**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-01**
+**EcoComply v1.0 — Launch-Ready / Last updated: 2025-12-05**
 
-**Document Version:** 1.6
+**Document Version:** 1.7
 **Status:** Complete - Updated to Match Production Implementation
 **Created by:** Cursor
 **Depends on:**
@@ -19,6 +19,12 @@
 > - `docs/BUSINESS_LOGIC_COMPARISON.md` - Two-way comparison between codebase and Product Business Logic specification
 > - `docs/specs/30_Product_Business_Logic.md` - Contains implementation status notes for each section
 
+> [v1.7 UPDATE - Added 28 Enhanced Features & Regulatory Pack Tables - 2025-12-05]
+> - Added Enhanced Features V2 tables (11 tables): evidence_gaps, content_embeddings, compliance_risk_scores, compliance_risk_history, obligation_costs, compliance_budgets, activity_feed, calendar_tokens, evidence_suggestions, obligation_completion_metrics, webhook_deliveries
+> - Added Regulatory Pack Engine tables (14 tables): company_relaxed_rules, elv_conditions, ccs_risk_categories, ccs_compliance_bands, ccs_assessments, ccs_non_compliances, compliance_assessment_reports, regulatory_capas, regulatory_incidents, regulatory_packs, board_pack_detail_requests, tender_pack_incident_optins, pack_readiness_rules, elv_monitoring_results
+> - Added Ingestion Schema tables (2 tables): ingestion_sessions, subjective_interpretations
+> - Added Review Queue Enhancement (1 table): review_queue_escalation_history
+> - Total new tables: 28
 > [v1.6 UPDATE - Added 20+ Missing Production Tables - 2025-02-03]
 > - Added Module 1 advanced tables (enforcement notices, compliance decisions, condition rules/permissions)
 > - Added Module 2 advanced tables (sampling logistics, reconciliation, consent states, predictive analytics)
@@ -30,6 +36,50 @@
 ---
 
 ## Version History
+
+### Version 1.7 (2025-12-05)
+**Major Update: Enhanced Features V2 & Regulatory Pack Engine**
+
+This version documents 28 additional tables implemented for advanced analytics, regulatory compliance, and AI-powered features:
+
+**Enhanced Features V2 Tables (11 tables):**
+- `evidence_gaps` - Tracks obligations approaching deadline with missing/expired/insufficient evidence
+- `content_embeddings` - OpenAI text-embedding-3-small (1536 dimensions) for semantic search
+- `compliance_risk_scores` - Risk scores (0-100) at company/site/obligation level
+- `compliance_risk_history` - Historical scoring for trend analysis
+- `obligation_costs` - Cost tracking by type (LABOR, CONTRACTOR, EQUIPMENT, etc.)
+- `compliance_budgets` - Annual budgets with fiscal year tracking
+- `activity_feed` - Real-time collaboration tracking with 90-day auto-cleanup
+- `calendar_tokens` - iCal subscription tokens (USER/SITE/COMPANY types)
+- `evidence_suggestions` - AI-generated evidence guidance per obligation
+- `obligation_completion_metrics` - Completion forecasting with lateness tracking
+- `webhook_deliveries` - Webhook retry management with response capture
+
+**Regulatory Pack Engine Tables (14 tables):**
+- `company_relaxed_rules` - First-year adoption mode rule relaxations
+- `elv_conditions` - Environmental Limit Values from permits (permit-verbatim required)
+- `elv_monitoring_results` - Test results with automatic compliance checking
+- `ccs_risk_categories` - EA-defined risk categories (1=60pts, 2=31pts, 3=4pts, 4=0.1pts)
+- `ccs_compliance_bands` - Compliance bands A-F with subsistence multipliers
+- `ccs_assessments` - Yearly CCS compliance assessments per site
+- `ccs_non_compliances` - Individual breaches in CCS assessments
+- `compliance_assessment_reports` - CAR records (INSPECTION/AUDIT/DESK_ASSESSMENT/etc.)
+- `regulatory_capas` - Corrective & Preventive Actions with lifecycle
+- `regulatory_incidents` - Incident tracking (POLLUTION/FIRE/SPILL/etc.)
+- `regulatory_packs` - Generated packs (REGULATOR_PACK/INTERNAL_AUDIT_PACK/BOARD_PACK/TENDER_PACK)
+- `board_pack_detail_requests` - Board pack access audit with approval workflow
+- `tender_pack_incident_optins` - Tender pack incident disclosure
+- `pack_readiness_rules` - 24 default validation rules for pack generation
+
+**Ingestion Schema Tables (2 tables):**
+- `ingestion_sessions` - AI extraction session tracking with prompt versioning
+- `subjective_interpretations` - User interpretations of vague obligation phrases
+
+**Review Queue Enhancement (1 table):**
+- `review_queue_escalation_history` - Audit trail for escalating stale review items
+
+**Total Tables Added:** 28 tables
+**Total Tables in Schema:** 128+ tables
 
 ### Version 1.6 (2025-02-03)
 **Major Update: Production Implementation Alignment**
@@ -4590,17 +4640,1081 @@ CREATE INDEX idx_cr_obligation_id ON correction_records(obligation_id);
 
 ---
 
-# 11. Indexes
+# 11. Enhanced Features V2 Tables
 
-## 11.1 Primary Key Indexes
+## 11.1 evidence_gaps
+
+**Purpose:** Tracks obligations with upcoming deadlines but missing or insufficient evidence
+
+**Entity:** EvidenceGap
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE evidence_gaps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    deadline_id UUID REFERENCES deadlines(id) ON DELETE SET NULL,
+    gap_type TEXT NOT NULL CHECK (gap_type IN ('NO_EVIDENCE', 'EXPIRED_EVIDENCE', 'INSUFFICIENT_EVIDENCE')),
+    days_until_deadline INTEGER NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
+    detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    notified_at TIMESTAMPTZ,
+    dismissed_at TIMESTAMPTZ,
+    dismissed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    dismiss_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_evidence_gaps_company ON evidence_gaps(company_id);
+CREATE INDEX idx_evidence_gaps_site ON evidence_gaps(site_id);
+CREATE INDEX idx_evidence_gaps_obligation ON evidence_gaps(obligation_id);
+CREATE INDEX idx_evidence_gaps_unresolved ON evidence_gaps(company_id) WHERE resolved_at IS NULL AND dismissed_at IS NULL;
+CREATE INDEX idx_evidence_gaps_severity ON evidence_gaps(severity) WHERE resolved_at IS NULL;
+```
+
+## 11.2 content_embeddings
+
+**Purpose:** Stores OpenAI embeddings for semantic/natural language search (pgvector)
+
+**Entity:** ContentEmbedding
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+**Note:** Requires pgvector extension (vector type)
+
+```sql
+CREATE TABLE content_embeddings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('obligation', 'document', 'evidence', 'site')),
+    entity_id UUID NOT NULL,
+    content_text TEXT NOT NULL,
+    embedding vector(1536), -- OpenAI text-embedding-3-small dimension
+    embedding_model TEXT DEFAULT 'text-embedding-3-small',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(entity_type, entity_id)
+);
+
+CREATE INDEX idx_embeddings_company ON content_embeddings(company_id);
+CREATE INDEX idx_embeddings_entity ON content_embeddings(entity_type, entity_id);
+-- Vector index for similarity search (using ivfflat for better performance)
+CREATE INDEX idx_embeddings_vector ON content_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+```
+
+## 11.3 compliance_risk_scores
+
+**Purpose:** Calculated risk scores (0-100) for sites and obligations based on historical patterns
+
+**Entity:** ComplianceRiskScore
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE compliance_risk_scores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    obligation_id UUID REFERENCES obligations(id) ON DELETE CASCADE,
+    score_type TEXT NOT NULL CHECK (score_type IN ('SITE', 'OBLIGATION', 'COMPANY')),
+    risk_score INTEGER NOT NULL CHECK (risk_score >= 0 AND risk_score <= 100),
+    risk_level TEXT NOT NULL CHECK (risk_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
+    factors JSONB NOT NULL DEFAULT '{}',
+    calculated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    valid_until TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_risk_scores_company ON compliance_risk_scores(company_id);
+CREATE INDEX idx_risk_scores_site ON compliance_risk_scores(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX idx_risk_scores_obligation ON compliance_risk_scores(obligation_id) WHERE obligation_id IS NOT NULL;
+CREATE INDEX idx_risk_scores_valid ON compliance_risk_scores(valid_until) WHERE valid_until > NOW();
+```
+
+## 11.4 compliance_risk_history
+
+**Purpose:** Historical risk score data for trend analysis
+
+**Entity:** ComplianceRiskHistory
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE compliance_risk_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    score_type TEXT NOT NULL,
+    risk_score INTEGER NOT NULL,
+    risk_level TEXT NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_risk_history_company ON compliance_risk_history(company_id, recorded_at DESC);
+CREATE INDEX idx_risk_history_site ON compliance_risk_history(site_id, recorded_at DESC) WHERE site_id IS NOT NULL;
+```
+
+## 11.5 obligation_costs
+
+**Purpose:** Cost tracking for compliance activities (LABOR, CONTRACTOR, EQUIPMENT, etc.)
+
+**Entity:** ObligationCost
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE obligation_costs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    cost_type TEXT NOT NULL CHECK (cost_type IN ('LABOR', 'CONTRACTOR', 'EQUIPMENT', 'LAB_FEES', 'CONSULTING', 'SOFTWARE', 'OTHER')),
+    amount DECIMAL(12, 2) NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'GBP',
+    description TEXT,
+    incurred_date DATE NOT NULL,
+    compliance_period_start DATE,
+    compliance_period_end DATE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_obligation_costs_company ON obligation_costs(company_id);
+CREATE INDEX idx_obligation_costs_obligation ON obligation_costs(obligation_id);
+CREATE INDEX idx_obligation_costs_site ON obligation_costs(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX idx_obligation_costs_date ON obligation_costs(incurred_date);
+```
+
+## 11.6 compliance_budgets
+
+**Purpose:** Annual compliance budgets with fiscal year tracking
+
+**Entity:** ComplianceBudget
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE compliance_budgets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    obligation_id UUID REFERENCES obligations(id) ON DELETE CASCADE,
+    budget_type TEXT NOT NULL CHECK (budget_type IN ('COMPANY', 'SITE', 'OBLIGATION')),
+    annual_budget DECIMAL(12, 2) NOT NULL,
+    fiscal_year INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'GBP',
+    notes TEXT,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(company_id, site_id, obligation_id, fiscal_year)
+);
+
+CREATE INDEX idx_compliance_budgets_company ON compliance_budgets(company_id);
+CREATE INDEX idx_compliance_budgets_site ON compliance_budgets(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX idx_compliance_budgets_year ON compliance_budgets(fiscal_year);
+```
+
+## 11.7 activity_feed
+
+**Purpose:** Real-time activity tracking for team collaboration (90-day auto-cleanup)
+
+**Entity:** ActivityFeedItem
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE activity_feed (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    activity_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    entity_title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_activity_feed_company ON activity_feed(company_id, created_at DESC);
+CREATE INDEX idx_activity_feed_site ON activity_feed(site_id, created_at DESC) WHERE site_id IS NOT NULL;
+CREATE INDEX idx_activity_feed_user ON activity_feed(user_id, created_at DESC);
+CREATE INDEX idx_activity_feed_entity ON activity_feed(entity_type, entity_id);
+
+-- Auto-cleanup trigger for old activities (keep 90 days)
+CREATE OR REPLACE FUNCTION cleanup_old_activities() RETURNS trigger AS $$
+BEGIN
+    DELETE FROM activity_feed WHERE created_at < NOW() - INTERVAL '90 days';
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+## 11.8 calendar_tokens
+
+**Purpose:** iCal subscription tokens for deadline feeds (USER/SITE/COMPANY types)
+
+**Entity:** CalendarToken
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE calendar_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    token_type TEXT NOT NULL CHECK (token_type IN ('USER', 'SITE', 'COMPANY')),
+    name TEXT,
+    expires_at TIMESTAMPTZ,
+    last_accessed_at TIMESTAMPTZ,
+    access_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_calendar_tokens_token ON calendar_tokens(token);
+CREATE INDEX idx_calendar_tokens_user ON calendar_tokens(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_calendar_tokens_site ON calendar_tokens(site_id) WHERE site_id IS NOT NULL;
+```
+
+## 11.9 evidence_suggestions
+
+**Purpose:** AI-generated evidence requirement suggestions cached per obligation
+
+**Entity:** EvidenceSuggestion
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE evidence_suggestions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    suggestions JSONB NOT NULL,
+    required_evidence JSONB DEFAULT '[]',
+    recommended_evidence JSONB DEFAULT '[]',
+    specific_requirements JSONB DEFAULT '[]',
+    confidence DECIMAL(3, 2) NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    model_used TEXT DEFAULT 'gpt-4o',
+    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_evidence_suggestions_obligation ON evidence_suggestions(obligation_id);
+CREATE INDEX idx_evidence_suggestions_company ON evidence_suggestions(company_id);
+CREATE INDEX idx_evidence_suggestions_expires ON evidence_suggestions(expires_at);
+```
+
+## 11.10 obligation_completion_metrics
+
+**Purpose:** Completion time metrics for resource forecasting and lateness tracking
+
+**Entity:** ObligationCompletionMetric
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE obligation_completion_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID REFERENCES sites(id) ON DELETE CASCADE,
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    deadline_id UUID REFERENCES deadlines(id) ON DELETE SET NULL,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ NOT NULL,
+    time_to_complete_hours DECIMAL(8, 2),
+    was_late BOOLEAN NOT NULL DEFAULT FALSE,
+    days_late INTEGER DEFAULT 0,
+    complexity_score INTEGER CHECK (complexity_score >= 1 AND complexity_score <= 5),
+    completed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_completion_metrics_company ON obligation_completion_metrics(company_id);
+CREATE INDEX idx_completion_metrics_obligation ON obligation_completion_metrics(obligation_id);
+CREATE INDEX idx_completion_metrics_site ON obligation_completion_metrics(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX idx_completion_metrics_completed ON obligation_completion_metrics(completed_at DESC);
+```
+
+## 11.11 webhook_deliveries
+
+**Purpose:** Webhook delivery attempts, status, and retry tracking
+
+**Entity:** WebhookDelivery
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE webhook_deliveries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    webhook_id UUID NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    response_status INTEGER,
+    response_body TEXT,
+    response_headers JSONB,
+    delivered_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
+    error_message TEXT,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_retry_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_webhook_deliveries_webhook ON webhook_deliveries(webhook_id, created_at DESC);
+CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type, created_at DESC);
+CREATE INDEX idx_webhook_deliveries_pending ON webhook_deliveries(next_retry_at) WHERE delivered_at IS NULL AND failed_at IS NULL;
+```
+
+---
+
+# 12. Regulatory Pack Engine Tables
+
+## 12.1 company_relaxed_rules
+
+**Purpose:** First-year adoption mode rule relaxations for tenant onboarding
+
+**Entity:** CompanyRelaxedRule
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+**Reference:** Regulatory Pack Engine - Safeguard 1 (First-Year Adoption Mode)
+
+```sql
+CREATE TABLE company_relaxed_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    rule_id VARCHAR(20) NOT NULL,
+    standard_lookback_months INTEGER,
+    relaxed_lookback_start DATE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(company_id, rule_id)
+);
+
+CREATE INDEX idx_company_relaxed_rules_company ON company_relaxed_rules(company_id);
+```
+
+## 12.2 elv_conditions
+
+**Purpose:** Environmental Limit Values from permits (permit-verbatim required)
+
+**Entity:** ElvCondition
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** Yes (deleted_at)
+
+**Reference:** Regulatory Pack Engine - Safeguard 3 (Permit-Verbatim ELV)
+
+```sql
+CREATE TABLE elv_conditions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+    -- ELV identification
+    condition_reference VARCHAR(100) NOT NULL,
+    is_amenity_condition BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- ELV parameters (Safeguard 3: Permit-Verbatim)
+    elv_parameter VARCHAR(100) NOT NULL,
+    elv_value DECIMAL(15,6) NOT NULL,
+    elv_unit VARCHAR(50) NOT NULL,
+    elv_reference_conditions VARCHAR(255),
+    elv_averaging_period VARCHAR(100),
+    elv_verbatim_text TEXT NOT NULL,
+
+    -- Monitoring requirements
+    monitoring_frequency VARCHAR(50),
+    mcerts_required BOOLEAN NOT NULL DEFAULT FALSE,
+    next_monitoring_due DATE,
+
+    -- MCPD compliance deadlines
+    compliance_deadline DATE,
+    plant_thermal_input_mw DECIMAL(10,2),
+    plant_classification VARCHAR(50),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_elv_conditions_obligation ON elv_conditions(obligation_id);
+CREATE INDEX idx_elv_conditions_site ON elv_conditions(site_id);
+CREATE INDEX idx_elv_conditions_company ON elv_conditions(company_id);
+CREATE INDEX idx_elv_conditions_parameter ON elv_conditions(elv_parameter);
+CREATE INDEX idx_elv_conditions_next_monitoring ON elv_conditions(next_monitoring_due);
+```
+
+## 12.3 elv_monitoring_results
+
+**Purpose:** Test results with automatic compliance checking against permit limits
+
+**Entity:** ElvMonitoringResult
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE elv_monitoring_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    elv_condition_id UUID NOT NULL REFERENCES elv_conditions(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+    test_date DATE NOT NULL,
+    measured_value DECIMAL(15,6) NOT NULL,
+    measured_unit VARCHAR(50) NOT NULL,
+    reference_conditions VARCHAR(255),
+
+    -- Compliance check (against permit-verbatim values)
+    permit_limit DECIMAL(15,6) NOT NULL,
+    is_compliant BOOLEAN NOT NULL,
+    exceedance_value DECIMAL(15,6),
+    exceedance_percentage DECIMAL(8,4),
+
+    -- Testing details
+    laboratory_name VARCHAR(255),
+    mcerts_certified BOOLEAN NOT NULL DEFAULT FALSE,
+    certificate_reference VARCHAR(100),
+
+    -- Evidence link
+    evidence_id UUID REFERENCES evidence_items(id) ON DELETE SET NULL,
+
+    notes TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_elv_results_condition ON elv_monitoring_results(elv_condition_id);
+CREATE INDEX idx_elv_results_site ON elv_monitoring_results(site_id);
+CREATE INDEX idx_elv_results_date ON elv_monitoring_results(test_date);
+CREATE INDEX idx_elv_results_compliant ON elv_monitoring_results(is_compliant);
+```
+
+## 12.4 ccs_risk_categories
+
+**Purpose:** EA-defined risk categories for Compliance Classification Scheme (CCS)
+
+**Entity:** CcsRiskCategory
+
+**RLS Enabled:** No (reference data)
+
+**Soft Delete:** No
+
+**Reference:** EA Source #3: Assessing and Scoring Environmental Permit Compliance
+
+```sql
+CREATE TABLE ccs_risk_categories (
+    category VARCHAR(1) PRIMARY KEY CHECK (category IN ('1', '2', '3', '4')),
+    points DECIMAL(5,1) NOT NULL,
+    ea_definition TEXT NOT NULL,
+    ea_source VARCHAR(255) NOT NULL
+);
+
+-- Pre-populated EA-defined categories:
+-- '1' = 60 pts: "major impact on human health, quality of life or the environment"
+-- '2' = 31 pts: "significant impact on human health, quality of life or the environment"
+-- '3' = 4 pts: "minor impact on human health, quality of life or the environment"
+-- '4' = 0.1 pts: "no impact on human health, quality of life or the environment"
+```
+
+## 12.5 ccs_compliance_bands
+
+**Purpose:** Compliance bands A-F with subsistence multipliers
+
+**Entity:** CcsComplianceBand
+
+**RLS Enabled:** No (reference data)
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE ccs_compliance_bands (
+    band VARCHAR(1) PRIMARY KEY CHECK (band IN ('A', 'B', 'C', 'D', 'E', 'F')),
+    points_min DECIMAL(6,1) NOT NULL,
+    points_max DECIMAL(6,1),
+    subsistence_multiplier DECIMAL(4,2) NOT NULL,
+    ea_interpretation TEXT NOT NULL
+);
+
+-- Pre-populated EA-defined bands:
+-- 'A' = 0 pts (0.95x): "Full compliance"
+-- 'B' = 0.1-10 pts (1.00x): "Acceptable compliance"
+-- 'C' = 10.1-30 pts (1.10x): "must improve in order to achieve permit compliance"
+-- 'D' = 30.1-60 pts (1.25x): "must improve in order to achieve permit compliance"
+-- 'E' = 60.1-149.9 pts (1.50x): "must significantly improve..."
+-- 'F' = 150+ pts (3.00x): "must significantly improve...more likely to have permit revoked"
+```
+
+## 12.6 ccs_assessments
+
+**Purpose:** Yearly CCS compliance assessments per site
+
+**Entity:** CcsAssessment
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE ccs_assessments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
+
+    compliance_year INTEGER NOT NULL,
+    assessment_date DATE NOT NULL,
+
+    -- Scoring
+    total_score DECIMAL(6,1) NOT NULL DEFAULT 0,
+    compliance_band VARCHAR(1) REFERENCES ccs_compliance_bands(band),
+
+    -- Assessment details
+    assessed_by VARCHAR(50) CHECK (assessed_by IN ('EA_OFFICER', 'SELF_ASSESSMENT', 'THIRD_PARTY_AUDITOR')),
+    car_reference VARCHAR(100),
+    car_issued_date DATE,
+    appeal_deadline DATE,
+
+    notes TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE(site_id, compliance_year)
+);
+
+CREATE INDEX idx_ccs_assessments_site ON ccs_assessments(site_id);
+CREATE INDEX idx_ccs_assessments_company ON ccs_assessments(company_id);
+CREATE INDEX idx_ccs_assessments_year ON ccs_assessments(compliance_year);
+CREATE INDEX idx_ccs_assessments_band ON ccs_assessments(compliance_band);
+```
+
+## 12.7 ccs_non_compliances
+
+**Purpose:** Individual breaches in CCS assessments with scoring
+
+**Entity:** CcsNonCompliance
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE ccs_non_compliances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ccs_assessment_id UUID NOT NULL REFERENCES ccs_assessments(id) ON DELETE CASCADE,
+    obligation_id UUID REFERENCES obligations(id) ON DELETE SET NULL,
+    elv_condition_id UUID REFERENCES elv_conditions(id) ON DELETE SET NULL,
+
+    condition_reference VARCHAR(100) NOT NULL,
+    risk_category VARCHAR(1) NOT NULL REFERENCES ccs_risk_categories(category),
+    ccs_score DECIMAL(5,1) NOT NULL,
+
+    breach_description TEXT,
+    breach_start_date DATE,
+    breach_duration_days INTEGER,
+    is_amenity_breach BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Evidence
+    evidence_ids UUID[] DEFAULT '{}',
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ccs_non_compliances_assessment ON ccs_non_compliances(ccs_assessment_id);
+CREATE INDEX idx_ccs_non_compliances_obligation ON ccs_non_compliances(obligation_id);
+CREATE INDEX idx_ccs_non_compliances_category ON ccs_non_compliances(risk_category);
+```
+
+## 12.8 compliance_assessment_reports
+
+**Purpose:** CAR records (INSPECTION/AUDIT/DESK_ASSESSMENT/MONITORING_CHECK/OMA)
+
+**Entity:** ComplianceAssessmentReport
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE compliance_assessment_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
+    ccs_assessment_id UUID REFERENCES ccs_assessments(id) ON DELETE SET NULL,
+
+    car_reference VARCHAR(100) NOT NULL,
+    assessment_type VARCHAR(50) NOT NULL CHECK (assessment_type IN (
+        'INSPECTION', 'AUDIT', 'DESK_ASSESSMENT', 'MONITORING_CHECK', 'OMA'
+    )),
+    assessment_date DATE NOT NULL,
+
+    inspector_name VARCHAR(255),
+    findings TEXT,
+    total_score DECIMAL(6,1) NOT NULL DEFAULT 0,
+
+    issued_date DATE,
+    public_register_date DATE,
+    appeal_deadline DATE,
+    appeal_submitted BOOLEAN DEFAULT FALSE,
+    appeal_outcome VARCHAR(50),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cars_site ON compliance_assessment_reports(site_id);
+CREATE INDEX idx_cars_company ON compliance_assessment_reports(company_id);
+CREATE INDEX idx_cars_date ON compliance_assessment_reports(assessment_date);
+CREATE INDEX idx_cars_type ON compliance_assessment_reports(assessment_type);
+```
+
+## 12.9 regulatory_capas
+
+**Purpose:** Corrective & Preventive Actions with full lifecycle tracking
+
+**Entity:** RegulatoryCapa
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE regulatory_capas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    car_id UUID NOT NULL REFERENCES compliance_assessment_reports(id) ON DELETE CASCADE,
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    ccs_non_compliance_id UUID REFERENCES ccs_non_compliances(id) ON DELETE SET NULL,
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+    root_cause TEXT,
+    corrective_action TEXT,
+    preventive_action TEXT,
+
+    responsible_person VARCHAR(255),
+    responsible_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    target_date DATE,
+    completion_date DATE,
+
+    verification_method TEXT,
+    verification_date DATE,
+    verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN (
+        'OPEN', 'IN_PROGRESS', 'CLOSED', 'VERIFIED'
+    )),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_regulatory_capas_car ON regulatory_capas(car_id);
+CREATE INDEX idx_regulatory_capas_obligation ON regulatory_capas(obligation_id);
+CREATE INDEX idx_regulatory_capas_site ON regulatory_capas(site_id);
+CREATE INDEX idx_regulatory_capas_status ON regulatory_capas(status);
+CREATE INDEX idx_regulatory_capas_target ON regulatory_capas(target_date) WHERE status IN ('OPEN', 'IN_PROGRESS');
+```
+
+## 12.10 regulatory_incidents
+
+**Purpose:** Incident tracking (POLLUTION/FIRE/SPILL/ODOUR_COMPLAINT/etc.)
+
+**Entity:** RegulatoryIncident
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE regulatory_incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
+
+    incident_date TIMESTAMPTZ NOT NULL,
+    incident_type VARCHAR(50) NOT NULL CHECK (incident_type IN (
+        'POLLUTION', 'FIRE', 'EQUIPMENT_FAILURE', 'SPILL',
+        'ODOUR_COMPLAINT', 'NOISE_COMPLAINT', 'FLOODING', 'VANDALISM', 'OTHER'
+    )),
+
+    description TEXT NOT NULL,
+    immediate_actions TEXT,
+
+    regulatory_notification BOOLEAN NOT NULL DEFAULT FALSE,
+    notification_date TIMESTAMPTZ,
+    notification_reference VARCHAR(100),
+
+    linked_car_id UUID REFERENCES compliance_assessment_reports(id) ON DELETE SET NULL,
+    linked_capa_id UUID REFERENCES regulatory_capas(id) ON DELETE SET NULL,
+
+    risk_category VARCHAR(1) REFERENCES ccs_risk_categories(category),
+
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN (
+        'OPEN', 'INVESTIGATING', 'RESOLVED', 'CLOSED'
+    )),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_regulatory_incidents_site ON regulatory_incidents(site_id);
+CREATE INDEX idx_regulatory_incidents_company ON regulatory_incidents(company_id);
+CREATE INDEX idx_regulatory_incidents_date ON regulatory_incidents(incident_date);
+CREATE INDEX idx_regulatory_incidents_type ON regulatory_incidents(incident_type);
+CREATE INDEX idx_regulatory_incidents_status ON regulatory_incidents(status);
+```
+
+## 12.11 regulatory_packs
+
+**Purpose:** Generated regulatory packs (REGULATOR_PACK/INTERNAL_AUDIT_PACK/BOARD_PACK/TENDER_PACK)
+
+**Entity:** RegulatoryPack
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE regulatory_packs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+    pack_type VARCHAR(50) NOT NULL CHECK (pack_type IN (
+        'REGULATOR_PACK', 'INTERNAL_AUDIT_PACK', 'BOARD_PACK', 'TENDER_PACK'
+    )),
+
+    site_ids UUID[] NOT NULL,
+    document_ids UUID[] DEFAULT '{}',
+
+    generation_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' CHECK (status IN (
+        'DRAFT', 'GENERATING', 'READY', 'FAILED', 'EXPIRED'
+    )),
+
+    -- Configuration (includes safeguard settings)
+    configuration JSONB NOT NULL DEFAULT '{}',
+
+    -- Readiness evaluation results
+    blocking_failures JSONB DEFAULT '[]',
+    warnings JSONB DEFAULT '[]',
+    passed_rules JSONB DEFAULT '[]',
+
+    -- Output
+    file_reference VARCHAR(500),
+    file_hash VARCHAR(64),
+    expiry_date DATE,
+
+    -- Audit
+    generated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_regulatory_packs_company ON regulatory_packs(company_id);
+CREATE INDEX idx_regulatory_packs_type ON regulatory_packs(pack_type);
+CREATE INDEX idx_regulatory_packs_status ON regulatory_packs(status);
+CREATE INDEX idx_regulatory_packs_date ON regulatory_packs(generation_date);
+```
+
+## 12.12 board_pack_detail_requests
+
+**Purpose:** Board pack access audit with approval workflow (Safeguard 2)
+
+**Entity:** BoardPackDetailRequest
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE board_pack_detail_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pack_id UUID NOT NULL REFERENCES regulatory_packs(id) ON DELETE CASCADE,
+    section_requested VARCHAR(20) NOT NULL,
+    requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMPTZ,
+    justification TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'DENIED'))
+);
+
+CREATE INDEX idx_board_pack_requests_pack ON board_pack_detail_requests(pack_id);
+CREATE INDEX idx_board_pack_requests_status ON board_pack_detail_requests(status);
+```
+
+## 12.13 tender_pack_incident_optins
+
+**Purpose:** Tender pack incident disclosure with approval (Safeguard 4)
+
+**Entity:** TenderPackIncidentOptin
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE tender_pack_incident_optins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pack_id UUID NOT NULL REFERENCES regulatory_packs(id) ON DELETE CASCADE,
+    opt_in_decision VARCHAR(20) NOT NULL CHECK (opt_in_decision IN ('INCLUDED', 'EXCLUDED')),
+    disclosure_level VARCHAR(30) CHECK (disclosure_level IN ('AGGREGATE', 'SEVERITY_BREAKDOWN', 'FULL')),
+    approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMPTZ,
+    justification TEXT,
+    incident_data_snapshot JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_tender_pack_optins_pack ON tender_pack_incident_optins(pack_id);
+```
+
+## 12.14 pack_readiness_rules
+
+**Purpose:** 24 default validation rules for pack generation
+
+**Entity:** PackReadinessRule
+
+**RLS Enabled:** No (reference data)
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE pack_readiness_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_id VARCHAR(20) NOT NULL UNIQUE,
+    pack_types VARCHAR(50)[] NOT NULL,
+    description TEXT NOT NULL,
+    is_blocking BOOLEAN NOT NULL DEFAULT TRUE,
+    standard_lookback_months INTEGER,
+    ea_source VARCHAR(255),
+    query_template TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Pre-populated with 24 default rules (RA-001 to RD-008)
+-- Examples:
+-- RA-001: "All permit conditions must have compliance status assessed" (REGULATOR_PACK, blocking)
+-- RC-002: "CCS band must be calculated for current compliance year" (BOARD_PACK, blocking)
+-- RD-002: "Compliance band should be A, B, or C" (TENDER_PACK, non-blocking)
+```
+
+---
+
+# 13. Ingestion Schema Tables
+
+## 13.1 ingestion_sessions
+
+**Purpose:** AI extraction session tracking with prompt versioning
+
+**Entity:** IngestionSession
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE ingestion_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+
+    -- Prompt identification
+    prompt_id TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+
+    -- Processing metadata
+    model_identifier TEXT NOT NULL,
+    processing_started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    processing_completed_at TIMESTAMP WITH TIME ZONE,
+    processing_time_ms INTEGER,
+
+    -- Results summary
+    total_obligations_extracted INTEGER DEFAULT 0,
+    high_confidence_count INTEGER DEFAULT 0,
+    medium_confidence_count INTEGER DEFAULT 0,
+    low_confidence_count INTEGER DEFAULT 0,
+    subjective_count INTEGER DEFAULT 0,
+    flagged_for_review_count INTEGER DEFAULT 0,
+
+    -- Raw output storage
+    raw_extraction_output JSONB NOT NULL DEFAULT '{}',
+
+    -- Error tracking
+    errors JSONB DEFAULT '[]',
+    warnings JSONB DEFAULT '[]',
+
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ingestion_sessions_document ON ingestion_sessions(document_id);
+CREATE INDEX idx_ingestion_sessions_company ON ingestion_sessions(company_id);
+CREATE INDEX idx_ingestion_sessions_site ON ingestion_sessions(site_id);
+CREATE INDEX idx_ingestion_sessions_prompt ON ingestion_sessions(prompt_id, prompt_version);
+CREATE INDEX idx_ingestion_sessions_created ON ingestion_sessions(created_at DESC);
+CREATE INDEX idx_ingestion_sessions_status ON ingestion_sessions(processing_completed_at) WHERE processing_completed_at IS NULL;
+```
+
+## 13.2 subjective_interpretations
+
+**Purpose:** User interpretations of vague obligation phrases (e.g., "reasonable", "as soon as practicable")
+
+**Entity:** SubjectiveInterpretation
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+```sql
+CREATE TABLE subjective_interpretations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    obligation_id UUID NOT NULL REFERENCES obligations(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+    -- The subjective phrase being interpreted
+    phrase TEXT NOT NULL,
+
+    -- The interpretation
+    interpretation TEXT NOT NULL,
+
+    -- Context
+    operational_definition TEXT,
+    checklist_items JSONB DEFAULT '[]',
+
+    -- Audit
+    interpreted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    interpreted_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+
+    -- Version tracking
+    version INTEGER NOT NULL DEFAULT 1,
+    previous_interpretation_id UUID REFERENCES subjective_interpretations(id) ON DELETE SET NULL,
+
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_subjective_interpretations_obligation ON subjective_interpretations(obligation_id);
+CREATE INDEX idx_subjective_interpretations_company ON subjective_interpretations(company_id);
+CREATE INDEX idx_subjective_interpretations_phrase ON subjective_interpretations(phrase);
+CREATE INDEX idx_subjective_interpretations_user ON subjective_interpretations(interpreted_by);
+CREATE UNIQUE INDEX uq_subjective_interpretations_active ON subjective_interpretations(obligation_id, phrase) WHERE previous_interpretation_id IS NULL;
+```
+
+---
+
+# 14. Review Queue Enhancement Tables
+
+## 14.1 review_queue_escalation_history
+
+**Purpose:** Audit trail for escalating stale review queue items
+
+**Entity:** ReviewQueueEscalationHistory
+
+**RLS Enabled:** Yes
+
+**Soft Delete:** No
+
+**Reference:** Implementation Blueprint Section 7.5 (Escalation thresholds: Level 1 = 48h, Level 2 = 96h, Level 3 = 168h)
+
+```sql
+CREATE TABLE review_queue_escalation_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    review_queue_item_id UUID NOT NULL REFERENCES review_queue_items(id) ON DELETE CASCADE,
+    previous_level INTEGER NOT NULL,
+    new_level INTEGER NOT NULL,
+    hours_pending NUMERIC(10,2) NOT NULL,
+    escalated_to_user_ids UUID[] NOT NULL DEFAULT '{}',
+    notification_sent BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_escalation_history_item_id ON review_queue_escalation_history(review_queue_item_id);
+CREATE INDEX idx_escalation_history_created_at ON review_queue_escalation_history(created_at DESC);
+
+-- Helper function for escalation level calculation
+CREATE OR REPLACE FUNCTION calculate_escalation_level(hours_pending NUMERIC)
+RETURNS INTEGER AS $$
+BEGIN
+    IF hours_pending >= 168 THEN
+        RETURN 3; -- Critical: 7+ days
+    ELSIF hours_pending >= 96 THEN
+        RETURN 2; -- High: 4+ days
+    ELSIF hours_pending >= 48 THEN
+        RETURN 1; -- Medium: 2+ days
+    ELSE
+        RETURN 0; -- No escalation needed
+    END IF;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+```
+
+---
+
+# 15. Indexes
+
+## 15.1 Primary Key Indexes
 
 All primary keys automatically create indexes with the naming pattern `{table}_pkey`. These are created by PostgreSQL automatically and do not need explicit CREATE INDEX statements.
 
-## 11.2 Foreign Key Indexes
+## 15.2 Foreign Key Indexes
 
 PostgreSQL automatically indexes foreign keys, but explicit indexes are documented for clarity and performance optimization.
 
-## 11.3 Search Indexes
+## 15.3 Search Indexes
 
 **Full-Text Search on Documents:**
 
@@ -4624,7 +5738,7 @@ USING gin(to_tsvector('english', obligation_title || ' ' || COALESCE(obligation_
 
 **Reference:** Technical Architecture Section 1.4
 
-## 11.4 Composite Indexes
+## 15.4 Composite Indexes
 
 **Deadline Queries:**
 
@@ -4663,7 +5777,7 @@ WHERE health_status != 'HEALTHY';
 
 **Reference:** Technical Architecture Section 1.4
 
-## 11.5 Performance Optimization Indexes
+## 15.5 Performance Optimization Indexes
 
 **Deadline Calculations:**
 
@@ -4692,16 +5806,16 @@ WHERE status IN ('COMPLETED', 'IN_PROGRESS');
 
 ---
 
-# 12. Constraints
+# 16. Constraints
 
-## 12.1 Primary Key Constraints
+## 16.1 Primary Key Constraints
 
 All tables have a primary key constraint on the `id` column:
 - Constraint name: `{table}_pkey`
 - Type: UUID
 - Default: `gen_random_uuid()`
 
-## 12.2 Foreign Key Constraints
+## 16.2 Foreign Key Constraints
 
 All foreign keys follow the naming convention `fk_{table}_{referenced_table}` and include appropriate ON DELETE behavior:
 
@@ -4725,7 +5839,7 @@ ALTER TABLE documents ADD CONSTRAINT fk_documents_parent
     FOREIGN KEY (parent_document_id) REFERENCES documents(id) ON DELETE SET NULL;
 ```
 
-## 12.3 Unique Constraints
+## 16.3 Unique Constraints
 
 Unique constraints follow the naming convention `uq_{table}_{column(s)}`:
 
@@ -4744,7 +5858,7 @@ ALTER TABLE module_activations ADD CONSTRAINT uq_module_activations
     UNIQUE (company_id, site_id, module_id) WHERE status = 'ACTIVE';
 ```
 
-## 12.4 Check Constraints
+## 16.4 Check Constraints
 
 Check constraints follow the naming convention `chk_{table}_{column}` and enforce enum values:
 
@@ -4763,15 +5877,15 @@ ALTER TABLE run_hour_records ADD CONSTRAINT chk_run_hour_records_hours
     CHECK (hours_recorded >= 0);
 ```
 
-## 12.5 NOT NULL Constraints
+## 16.5 NOT NULL Constraints
 
 All fields marked as NOT NULL in the Canonical Dictionary are enforced at the database level. Fields that are nullable are explicitly marked as such.
 
 ---
 
-# 13. Enums
+# 17. Enums
 
-## 13.1 Enum Implementation Strategy
+## 17.1 Enum Implementation Strategy
 
 **PostgreSQL ENUM Types vs CHECK Constraints:**
 
@@ -4784,7 +5898,7 @@ The schema uses CHECK constraints instead of PostgreSQL ENUM types for flexibili
 - All enum values use UPPER_SNAKE_CASE
 - Values must match Canonical Dictionary exactly
 
-## 13.2 Core System Enums
+## 17.2 Core System Enums
 
 ### obligation_status
 - Values: `PENDING`, `IN_PROGRESS`, `DUE_SOON`, `COMPLETED`, `OVERDUE`, `INCOMPLETE`, `LATE_COMPLETE`, `NOT_APPLICABLE`, `REJECTED`
@@ -4868,7 +5982,7 @@ The schema uses CHECK constraints instead of PostgreSQL ENUM types for flexibili
 - Used in: `consultant_client_assignments.status`
 - **v1.0 Addition:** Tracks consultant client assignment status
 
-## 13.3 Module 2 Enums (Trade Effluent)
+## 17.3 Module 2 Enums (Trade Effluent)
 
 ### parameter_type
 - Values: `BOD`, `COD`, `SS`, `PH`, `TEMPERATURE`, `FOG`, `AMMONIA`, `PHOSPHORUS`
@@ -4886,7 +6000,7 @@ The schema uses CHECK constraints instead of PostgreSQL ENUM types for flexibili
 - Values: `OPEN`, `RESOLVED`, `CLOSED`
 - Used in: `exceedances.status`
 
-## 13.4 Module 3 Enums (MCPD/Generators)
+## 17.4 Module 3 Enums (MCPD/Generators)
 
 ### generator_type
 - Values: `MCPD_1_5MW`, `MCPD_5_50MW`, `SPECIFIED_GENERATOR`, `EMERGENCY_GENERATOR`
@@ -4900,7 +6014,7 @@ The schema uses CHECK constraints instead of PostgreSQL ENUM types for flexibili
 - Values: `DRAFT`, `READY`, `SUBMITTED`, `ACKNOWLEDGED`
 - Used in: `aer_documents.status`
 
-## 13.5 System Enums
+## 17.5 System Enums
 
 ### user_role
 - Values: `OWNER`, `ADMIN`, `STAFF`, `CONSULTANT`, `VIEWER`
@@ -4925,9 +6039,9 @@ The schema uses CHECK constraints instead of PostgreSQL ENUM types for flexibili
 
 ---
 
-# 14. Database Extensions
+# 18. Database Extensions
 
-## 14.1 Required Extensions
+## 18.1 Required Extensions
 
 ```sql
 -- UUID generation
@@ -4939,7 +6053,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 **Reference:** Technical Architecture Section 1.1
 
-## 14.2 Extension Usage
+## 18.2 Extension Usage
 
 **uuid-ossp:**
 - Provides `gen_random_uuid()` function for UUID primary key defaults
@@ -4952,9 +6066,9 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 ---
 
-# 15. RLS Enablement
+# 19. RLS Enablement
 
-## 15.1 RLS Strategy
+## 19.1 RLS Strategy
 
 **High-Level Approach:**
 - RLS enabled on ALL tenant-scoped tables
@@ -4963,7 +6077,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 **Reference:** Technical Architecture Section 1.3
 
-## 15.2 RLS Enablement Commands
+## 19.2 RLS Enablement Commands
 
 ```sql
 -- Enable RLS on all tenant-scoped tables
@@ -5003,7 +6117,7 @@ ALTER TABLE extraction_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ```
 
-## 15.3 Tables with RLS Disabled
+## 19.3 Tables with RLS Disabled
 
 **System Tables (Global):**
 - `system_settings` - Global system configuration
@@ -5014,9 +6128,9 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 ---
 
-# 16. Validation Rules
+# 20. Validation Rules
 
-## 16.1 Field Validation
+## 20.1 Field Validation
 
 **Email Validation:**
 - `users.email`: Must be valid email format (enforced at application level)
@@ -5041,7 +6155,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 - `documents.title`: Max 500 characters (enforced at application level)
 - `obligations.original_text`: No limit (TEXT type)
 
-## 16.2 Business Logic Constraints
+## 20.2 Business Logic Constraints
 
 **Cross-Field Validations:**
 - `deadlines.due_date >= deadlines.created_at` (enforced at application level)

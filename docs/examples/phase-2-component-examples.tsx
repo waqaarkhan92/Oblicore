@@ -72,12 +72,12 @@ export function DashboardExample() {
         <ComplianceChart
           type="line"
           data={[
-            { name: 'Jan', completed: 45, pending: 12, overdue: 3 },
-            { name: 'Feb', completed: 52, pending: 8, overdue: 2 },
-            { name: 'Mar', completed: 61, pending: 10, overdue: 1 },
-            { name: 'Apr', completed: 58, pending: 15, overdue: 4 },
-            { name: 'May', completed: 70, pending: 9, overdue: 2 },
-            { name: 'Jun', completed: 78, pending: 7, overdue: 1 },
+            { name: 'Jan', value: 45, completed: 45, pending: 12, overdue: 3 },
+            { name: 'Feb', value: 52, completed: 52, pending: 8, overdue: 2 },
+            { name: 'Mar', value: 61, completed: 61, pending: 10, overdue: 1 },
+            { name: 'Apr', value: 58, completed: 58, pending: 15, overdue: 4 },
+            { name: 'May', value: 70, completed: 70, pending: 9, overdue: 2 },
+            { name: 'Jun', value: 78, completed: 78, pending: 7, overdue: 1 },
           ]}
           dataKeys={['completed', 'pending', 'overdue']}
           title="Obligation Trends"
@@ -409,10 +409,10 @@ export function ComplianceMetricsExample() {
       <ComplianceChart
         type="area"
         data={[
-          { name: 'Week 1', completed: 15 },
-          { name: 'Week 2', completed: 28 },
-          { name: 'Week 3', completed: 42 },
-          { name: 'Week 4', completed: 58 },
+          { name: 'Week 1', value: 15, completed: 15 },
+          { name: 'Week 2', value: 28, completed: 28 },
+          { name: 'Week 3', value: 42, completed: 42 },
+          { name: 'Week 4', value: 58, completed: 58 },
         ]}
         title="Cumulative Compliance Progress"
         description="Track how many obligations have been completed over time"

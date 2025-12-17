@@ -2,7 +2,7 @@
 
 **EcoComply v1.0 — Launch-Ready / Last updated: 2025-01-01**
 
-**Document Version:** 1.6
+**Document Version:** 1.7
 **Status:** Complete - Updated to Match Production Implementation
 **Created by:** Cursor
 **Depends on:**
@@ -13,6 +13,18 @@
 
 **Purpose:** Defines the complete REST API specification for the EcoComply platform, including all endpoints, request/response schemas, authentication, authorization, error handling, and integration points.
 
+> [v1.7 UPDATE - Added 30+ Enhanced Features V2 Endpoints - 2025-02-05]
+> - Added Activity Feed Endpoints (real-time activity tracking)
+> - Added Calendar/iCal Integration Endpoints (token management, feed generation)
+> - Added Cost Management Endpoints (compliance cost tracking)
+> - Added Evidence Gaps Detection Endpoints (gap identification, dismissal)
+> - Added Resource Forecasting Endpoints (workload prediction, capacity analysis)
+> - Added Risk Scoring Endpoints (compliance risk scores, trends)
+> - Added Semantic Search Endpoints (AI-powered natural language search)
+> - Added Compliance Trends Endpoints (historical score analysis)
+> - Added Mobile Evidence Upload Endpoints (GPS tagging, chunked upload, offline sync)
+> - Added Regulatory Framework Endpoints (packs, CCS assessments, ELV monitoring)
+> - Added User Activity Reports Endpoints
 > [v1.6 UPDATE - Added 77+ Missing Production Endpoints - 2025-02-03]
 > - Added Module 1 Advanced Endpoints (enforcement notices, compliance decisions, condition rules/permissions, evidence completeness)
 > - Added Module 2 Advanced Endpoints (sampling logistics, reconciliation, consent states, predictive analytics)
@@ -26,6 +38,46 @@
 ---
 
 ## Version History
+
+### Version 1.7 (2025-02-05)
+**Major Update: Enhanced Features V2 Endpoints**
+
+This version documents all new endpoints from the Enhanced Features V2 specification:
+
+**Activity & Collaboration Endpoints (5 endpoints added):**
+- Activity Feed API - Company-wide activity stream with filtering
+- User Activity Reports - Individual user activity metrics
+
+**Calendar Integration Endpoints (4 endpoints added):**
+- Calendar Tokens API - Create and manage iCal subscription tokens
+- iCal Feed API - Generate iCal feeds for deadlines (USER or SITE scope)
+- Token Management - List, create, revoke calendar tokens
+
+**Evidence Intelligence Endpoints (6 endpoints added):**
+- Evidence Gaps API - Detect missing or expired evidence
+- Evidence Gaps Summary - Aggregated gap statistics
+- Dismiss Evidence Gap - Mark gaps as dismissed with reason
+- Mobile Evidence Upload - GPS-tagged uploads with chunked support
+- Offline Sync API - Batch sync offline-queued evidence
+
+**Analytics & Forecasting Endpoints (6 endpoints added):**
+- Workload Forecasting - Predict upcoming workload hours
+- Capacity Analysis - Team capacity utilization
+- Risk Scores API - Compliance risk scoring
+- Risk Score Trends - Historical risk trends
+- Compliance Score Trends - Score trend analysis
+- Cost Summary - Compliance cost aggregation
+
+**Search & Discovery Endpoints (1 endpoint added):**
+- Semantic Search - AI-powered natural language search with embeddings
+
+**Regulatory Framework Endpoints (8 endpoints added):**
+- Regulatory Packs API - Generate compliance packs for regulators
+- Pack Readiness Evaluation - Pre-generation validation
+- CCS Assessments API - Compliance Classification Scheme tracking
+- CCS Dashboard - CCS metrics and status
+- ELV Summary - Emission Limit Values compliance overview
+- Regulatory Dashboard Stats - Company-wide regulatory metrics
 
 ### Version 1.6 (2025-02-03)
 **Major Update: Production Implementation Alignment**
@@ -160,8 +212,19 @@ Initial API specification covering core features and Modules 1-3.
 41. [**NEW:** Dashboard & Statistics Endpoints](#41-dashboard--statistics-endpoints)
 42. [**NEW:** Initialization & System Setup Endpoints](#42-initialization--system-setup-endpoints)
 43. [**NEW:** Recurring Events Endpoints](#43-recurring-events-endpoints)
-44. [OpenAPI Specification](#44-openapi-specification)
-45. [TypeScript Interfaces](#45-typescript-interfaces)
+44. [**NEW v1.7:** Activity Feed Endpoints](#44-activity-feed-endpoints)
+45. [**NEW v1.7:** Calendar Integration Endpoints](#45-calendar-integration-endpoints)
+46. [**NEW v1.7:** Cost Management Endpoints](#46-cost-management-endpoints)
+47. [**NEW v1.7:** Evidence Gaps Detection Endpoints](#47-evidence-gaps-detection-endpoints)
+48. [**NEW v1.7:** Resource Forecasting Endpoints](#48-resource-forecasting-endpoints)
+49. [**NEW v1.7:** Risk Scoring Endpoints](#49-risk-scoring-endpoints)
+50. [**NEW v1.7:** Semantic Search Endpoints](#50-semantic-search-endpoints)
+51. [**NEW v1.7:** Compliance Trends Endpoints](#51-compliance-trends-endpoints)
+52. [**NEW v1.7:** Mobile Evidence Endpoints](#52-mobile-evidence-endpoints)
+53. [**NEW v1.7:** Regulatory Framework Endpoints](#53-regulatory-framework-endpoints)
+54. [**NEW v1.7:** User Activity Reports Endpoints](#54-user-activity-reports-endpoints)
+55. [OpenAPI Specification](#55-openapi-specification)
+56. [TypeScript Interfaces](#56-typescript-interfaces)
 
 ---
 
@@ -12578,7 +12641,1338 @@ Create recurrence event.
 
 ---
 
-# 44. OpenAPI Specification
+# 44. Activity Feed Endpoints
+
+Real-time activity tracking and company-wide activity stream.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 6
+
+## 44.1 GET /api/v1/activity-feed
+
+**Purpose:** Get recent activities for the company with filtering options.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+- `user_id` (string, optional) - Filter by specific user
+- `activity_types` (string, optional) - Comma-separated list of activity types
+- `page` (integer, optional) - Page number (default: 1)
+- `limit` (integer, optional) - Results per page (default: 50, max: 100)
+
+**Activity Types:**
+- `OBLIGATION_COMPLETED` - Obligation marked complete
+- `EVIDENCE_UPLOADED` - Evidence file uploaded
+- `DEADLINE_APPROACHING` - Deadline within alert period
+- `DOCUMENT_PROCESSED` - Document AI extraction complete
+- `REVIEW_APPROVED` - Review queue item approved
+- `ESCALATION_TRIGGERED` - Escalation workflow triggered
+- `OFFLINE_SYNC` - Offline evidence synced
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "company_id": "uuid",
+      "site_id": "uuid",
+      "user_id": "uuid",
+      "activity_type": "OBLIGATION_COMPLETED",
+      "entity_type": "obligation",
+      "entity_id": "uuid",
+      "entity_title": "Monthly emission monitoring",
+      "summary": "Completed obligation for Site A",
+      "metadata": {
+        "deadline_id": "uuid",
+        "completed_by": "John Smith"
+      },
+      "created_at": "2025-02-05T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 150,
+    "total_pages": 3
+  }
+}
+```
+
+**Error Codes:**
+- `401 UNAUTHORIZED` - Not authenticated
+- `500 INTERNAL_ERROR` - Server error
+
+**Rate Limiting:** 100 requests/minute per user
+
+---
+
+# 45. Calendar Integration Endpoints
+
+iCal calendar subscription management for deadline integration with external calendar apps.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 7
+
+## 45.1 GET /api/v1/calendar/tokens
+
+**Purpose:** List all calendar tokens for the current user.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "token_type": "USER",
+      "site_id": null,
+      "site_name": null,
+      "name": "Personal Calendar",
+      "feed_url": "https://api.ecocomply.com/api/v1/calendar/ical/abc123xyz",
+      "created_at": "2025-02-01T10:00:00Z",
+      "expires_at": null
+    },
+    {
+      "id": "uuid",
+      "token_type": "SITE",
+      "site_id": "uuid",
+      "site_name": "London Manufacturing Site",
+      "name": "Site Calendar",
+      "feed_url": "https://api.ecocomply.com/api/v1/calendar/ical/def456uvw",
+      "created_at": "2025-02-01T10:00:00Z",
+      "expires_at": null
+    }
+  ]
+}
+```
+
+## 45.2 POST /api/v1/calendar/tokens
+
+**Purpose:** Create a new calendar subscription token.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Request Body:**
+```json
+{
+  "token_type": "USER" | "SITE",
+  "site_id": "uuid",        // Required if token_type is SITE
+  "name": "My Calendar"     // Optional display name
+}
+```
+
+**Validation Rules:**
+- `token_type` must be `USER` or `SITE`
+- If `token_type` is `SITE`, `site_id` is required and must belong to user's company
+
+**Response:** 201 Created
+```json
+{
+  "data": {
+    "id": "uuid",
+    "token": "abc123xyz789...",
+    "feed_url": "https://api.ecocomply.com/api/v1/calendar/ical/abc123xyz789",
+    "token_type": "USER",
+    "site_id": null,
+    "name": "Personal Calendar"
+  },
+  "message": "Calendar token created successfully"
+}
+```
+
+## 45.3 GET /api/v1/calendar/ical/{token}
+
+**Purpose:** Generate iCal feed for calendar subscription.
+
+**Authentication:** NOT REQUIRED (token-based access for calendar apps)
+
+**Path Parameters:**
+- `token` (string, required) - Calendar subscription token
+
+**Response:** 200 OK (Content-Type: text/calendar)
+```
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//EcoComply//Deadlines//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:EcoComply Deadlines
+BEGIN:VEVENT
+UID:deadline-uuid@ecocomply.com
+DTSTART:20250215
+DTEND:20250216
+SUMMARY:Monthly emission monitoring due
+DESCRIPTION:Obligation: Monitor stack emissions...
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR
+```
+
+**Response Headers:**
+- `Content-Type: text/calendar; charset=utf-8`
+- `Content-Disposition: attachment; filename="ecocomply-deadlines.ics"`
+- `Cache-Control: no-cache, no-store, must-revalidate`
+
+**Error Codes:**
+- `401 UNAUTHORIZED` - Invalid or expired token
+- `400 BAD_REQUEST` - Invalid token configuration
+
+## 45.4 DELETE /api/v1/calendar/tokens/{tokenId}
+
+**Purpose:** Revoke a calendar subscription token.
+
+**Authentication:** Required
+
+**Authorization:** Token must belong to user's company
+
+**Path Parameters:**
+- `tokenId` (UUID, required) - Calendar token identifier
+
+**Response:** 200 OK
+```json
+{
+  "message": "Calendar token revoked successfully"
+}
+```
+
+**Error Codes:**
+- `404 NOT_FOUND` - Token not found
+
+---
+
+# 46. Cost Management Endpoints
+
+Compliance cost tracking and aggregation.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 4
+
+## 46.1 GET /api/v1/costs/summary
+
+**Purpose:** Get aggregated compliance cost summary.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+- `period` (string, optional) - Time period: `1m`, `3m`, `6m`, `12m` (default: `12m`)
+- `group_by` (string, optional) - Grouping: `type`, `site`, `month` (default: `type`)
+
+**Cost Types:**
+- `MONITORING` - Monitoring equipment and services
+- `TESTING` - Laboratory testing and analysis
+- `REPORTING` - Report preparation and submission
+- `TRAINING` - Staff training costs
+- `EQUIPMENT` - Equipment maintenance/replacement
+- `CONSULTANT` - External consultant fees
+- `PENALTY` - Fines and penalties
+- `OTHER` - Miscellaneous compliance costs
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "total": 45000.00,
+    "currency": "GBP",
+    "period": "12m",
+    "start_date": "2024-02-05",
+    "end_date": "2025-02-05",
+    "count": 156,
+    "group_by": "type",
+    "breakdown": {
+      "MONITORING": 15000.00,
+      "TESTING": 12000.00,
+      "REPORTING": 8000.00,
+      "TRAINING": 5000.00,
+      "EQUIPMENT": 3000.00,
+      "CONSULTANT": 2000.00
+    }
+  }
+}
+```
+
+**Response (group_by=site):**
+```json
+{
+  "data": {
+    "total": 45000.00,
+    "currency": "GBP",
+    "breakdown": {
+      "London Site": { "total": 25000.00, "site_id": "uuid" },
+      "Manchester Site": { "total": 20000.00, "site_id": "uuid" }
+    }
+  }
+}
+```
+
+**Response (group_by=month):**
+```json
+{
+  "data": {
+    "total": 45000.00,
+    "currency": "GBP",
+    "breakdown": {
+      "2024-03": 3500.00,
+      "2024-04": 4200.00,
+      "2024-05": 3800.00
+    }
+  }
+}
+```
+
+---
+
+# 47. Evidence Gaps Detection Endpoints
+
+Automated detection and management of missing or insufficient evidence.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 1
+
+## 47.1 GET /api/v1/evidence-gaps
+
+**Purpose:** List evidence gaps with filtering options.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+- `severity` (string, optional) - Filter by severity: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`
+- `gap_type` (string, optional) - Filter by type: `NO_EVIDENCE`, `EXPIRED_EVIDENCE`, `INSUFFICIENT_EVIDENCE`
+- `resolved` (boolean, optional) - Filter by resolution status
+- `page` (integer, optional) - Page number (default: 1)
+- `limit` (integer, optional) - Results per page (default: 20, max: 100)
+
+**Gap Types:**
+- `NO_EVIDENCE` - Obligation has no linked evidence
+- `EXPIRED_EVIDENCE` - All linked evidence is expired
+- `INSUFFICIENT_EVIDENCE` - Evidence exists but doesn't meet requirements
+
+**Severity Levels:**
+- `CRITICAL` - Deadline within 7 days
+- `HIGH` - Deadline within 14 days
+- `MEDIUM` - Deadline within 30 days
+- `LOW` - Deadline beyond 30 days
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "company_id": "uuid",
+      "site_id": "uuid",
+      "obligation_id": "uuid",
+      "deadline_id": "uuid",
+      "gap_type": "NO_EVIDENCE",
+      "days_until_deadline": 5,
+      "severity": "CRITICAL",
+      "detected_at": "2025-02-01T10:00:00Z",
+      "resolved_at": null,
+      "notified_at": "2025-02-01T10:05:00Z",
+      "dismissed_at": null,
+      "dismiss_reason": null,
+      "created_at": "2025-02-01T10:00:00Z",
+      "obligations": {
+        "id": "uuid",
+        "obligation_title": "Monthly emission monitoring",
+        "obligation_description": "...",
+        "category": "MONITORING"
+      },
+      "sites": {
+        "id": "uuid",
+        "name": "London Site"
+      },
+      "deadlines": {
+        "id": "uuid",
+        "due_date": "2025-02-10"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 45,
+    "total_pages": 3
+  }
+}
+```
+
+## 47.2 GET /api/v1/evidence-gaps/summary
+
+**Purpose:** Get aggregated evidence gap statistics.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "total": 45,
+    "by_severity": {
+      "CRITICAL": 5,
+      "HIGH": 12,
+      "MEDIUM": 18,
+      "LOW": 10
+    },
+    "by_gap_type": {
+      "NO_EVIDENCE": 25,
+      "EXPIRED_EVIDENCE": 12,
+      "INSUFFICIENT_EVIDENCE": 8
+    },
+    "by_site": {
+      "uuid-1": 20,
+      "uuid-2": 25
+    },
+    "by_site_detailed": {
+      "uuid-1": { "name": "London Site", "count": 20 },
+      "uuid-2": { "name": "Manchester Site", "count": 25 }
+    }
+  }
+}
+```
+
+## 47.3 POST /api/v1/evidence-gaps/{gapId}/dismiss
+
+**Purpose:** Dismiss an evidence gap with reason.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Path Parameters:**
+- `gapId` (UUID, required) - Evidence gap identifier
+
+**Request Body:**
+```json
+{
+  "reason": "Evidence will be obtained next month during scheduled inspection"
+}
+```
+
+**Validation Rules:**
+- `reason` is required and must not be empty
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "id": "uuid",
+    "dismissed_at": "2025-02-05T10:30:00Z",
+    "dismissed_by": "uuid",
+    "dismiss_reason": "Evidence will be obtained next month during scheduled inspection"
+  },
+  "message": "Evidence gap dismissed successfully"
+}
+```
+
+**Error Codes:**
+- `404 NOT_FOUND` - Gap not found
+- `422 VALIDATION_ERROR` - Reason is required
+
+---
+
+# 48. Resource Forecasting Endpoints
+
+Workload prediction and capacity analysis.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 11
+
+## 48.1 GET /api/v1/forecasting/workload
+
+**Purpose:** Get forecasted workload hours based on upcoming deadlines.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+- `weeks_ahead` (integer, optional) - Forecast period in weeks (default: 4)
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "forecast": [
+      {
+        "week_start": "2025-02-10",
+        "deadline_count": 8,
+        "estimated_hours": 16.5,
+        "deadlines": [
+          {
+            "id": "uuid",
+            "due_date": "2025-02-12",
+            "obligation_title": "Monthly monitoring report",
+            "site_name": "London Site",
+            "estimated_hours": 2.5
+          }
+        ]
+      },
+      {
+        "week_start": "2025-02-17",
+        "deadline_count": 5,
+        "estimated_hours": 10.0,
+        "deadlines": [...]
+      }
+    ],
+    "summary": {
+      "weeks_ahead": 4,
+      "total_deadlines": 25,
+      "total_estimated_hours": 52.5,
+      "average_hours_per_week": 13.1
+    }
+  }
+}
+```
+
+**Business Logic:**
+- Estimated hours are calculated from historical completion metrics
+- If no historical data exists, default of 2 hours per deadline is used
+- Deadlines are grouped by week (Monday start)
+
+## 48.2 GET /api/v1/forecasting/capacity
+
+**Purpose:** Get capacity analysis comparing workload to team capacity.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `weeks_ahead` (integer, optional) - Forecast period in weeks (default: 4)
+- `hours_per_week` (number, optional) - Team capacity hours per week (default: 40)
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "capacity": {
+      "team_members": 5,
+      "hours_per_week": 40,
+      "weeks_ahead": 4,
+      "total_capacity_hours": 800
+    },
+    "workload": {
+      "deadline_count": 50,
+      "estimated_hours": 120.5,
+      "average_hours_per_deadline": 2.4
+    },
+    "analysis": {
+      "utilization_rate": 15.1,
+      "capacity_status": "UNDER_CAPACITY",
+      "surplus_hours": 679.5,
+      "deficit_hours": 0
+    },
+    "recommendations": [
+      "Consider proactive compliance reviews during available capacity",
+      "Good time for process improvements or documentation updates"
+    ]
+  }
+}
+```
+
+**Capacity Status Values:**
+- `UNDER_CAPACITY` - Utilization < 50%
+- `OPTIMAL` - Utilization 50-80%
+- `AT_RISK` - Utilization 80-100%
+- `OVER_CAPACITY` - Utilization > 100%
+
+---
+
+# 49. Risk Scoring Endpoints
+
+Compliance risk scoring and trend analysis.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 3
+
+## 49.1 GET /api/v1/risk-scores
+
+**Purpose:** Get current risk scores for company/sites.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site
+- `score_type` (string, optional) - Filter by score type
+
+**Score Types:**
+- `OVERALL` - Overall compliance risk
+- `DEADLINE` - Deadline-related risk
+- `EVIDENCE` - Evidence gap risk
+- `REGULATORY` - Regulatory action risk
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "site_id": "uuid",
+      "site_name": "London Site",
+      "score_type": "OVERALL",
+      "risk_score": 25,
+      "risk_level": "LOW",
+      "factors": {
+        "overdue_obligations": 2,
+        "evidence_gaps": 5,
+        "upcoming_critical": 3
+      },
+      "calculated_at": "2025-02-05T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Risk Levels:**
+- `LOW` - Score 0-25
+- `MEDIUM` - Score 26-50
+- `HIGH` - Score 51-75
+- `CRITICAL` - Score 76-100
+
+## 49.2 GET /api/v1/risk-scores/trends
+
+**Purpose:** Get historical risk score trends for a site.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, required) - Site to get trends for
+- `period` (string, optional) - Time period: `7d`, `30d`, `90d` (default: `30d`)
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "date": "2025-01-15",
+      "risk_score": 35,
+      "risk_level": "MEDIUM"
+    },
+    {
+      "date": "2025-01-22",
+      "risk_score": 30,
+      "risk_level": "MEDIUM"
+    },
+    {
+      "date": "2025-01-29",
+      "risk_score": 25,
+      "risk_level": "LOW"
+    }
+  ],
+  "site_id": "uuid",
+  "period": "30d",
+  "days": 30
+}
+```
+
+**Error Codes:**
+- `422 VALIDATION_ERROR` - site_id is required
+
+---
+
+# 50. Semantic Search Endpoints
+
+AI-powered natural language search using embeddings.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 2
+
+## 50.1 POST /api/v1/search/semantic
+
+**Purpose:** Search across entities using natural language queries.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Request Body:**
+```json
+{
+  "query": "what are my NOx emission limits",
+  "entity_types": ["obligation", "document"],
+  "limit": 20
+}
+```
+
+**Request Schema:**
+```typescript
+interface SemanticSearchRequest {
+  query: string;                    // Required - natural language query
+  entity_types?: string[];          // Optional - filter by entity type
+  limit?: number;                   // Optional - max results (default: 20, max: 100)
+}
+```
+
+**Valid Entity Types:**
+- `obligation` - Search obligations
+- `document` - Search documents
+- `evidence` - Search evidence items
+- `site` - Search sites
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "entity_type": "obligation",
+      "entity_id": "uuid",
+      "similarity_score": 0.92,
+      "content_preview": "NOx emission limit of 100mg/Nm³...",
+      "metadata": {
+        "id": "uuid",
+        "obligation_title": "NOx Emission Limit Compliance",
+        "obligation_description": "...",
+        "category": "MONITORING",
+        "review_status": "CONFIRMED",
+        "site_id": "uuid",
+        "sites": { "name": "London Site" }
+      }
+    },
+    {
+      "entity_type": "document",
+      "entity_id": "uuid",
+      "similarity_score": 0.85,
+      "content_preview": "...",
+      "metadata": {
+        "id": "uuid",
+        "title": "Environmental Permit EPR/AB1234CD",
+        "document_type": "PERMIT",
+        "status": "PROCESSED",
+        "created_at": "2025-01-01T10:00:00Z"
+      }
+    }
+  ],
+  "query": "what are my NOx emission limits",
+  "total": 15
+}
+```
+
+**Validation Rules:**
+- `query` is required and must not be empty
+- `entity_types` if provided must contain valid values
+- Minimum similarity threshold is 0.4
+
+**Error Codes:**
+- `422 VALIDATION_ERROR` - Invalid query or entity types
+
+---
+
+# 51. Compliance Trends Endpoints
+
+Historical compliance score analysis.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 12
+
+## 51.1 GET /api/v1/trends/compliance-score
+
+**Purpose:** Get compliance score trends over time.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (filtered by company)
+
+**Query Parameters:**
+- `site_id` (string, optional) - Filter by specific site (or 'all' for company-wide)
+- `period` (string, optional) - Time period: `7d`, `30d`, `90d` (default: `30d`)
+- `granularity` (string, optional) - Data granularity: `daily`, `weekly`, `monthly` (default: `daily`)
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    { "date": "2025-01-15", "score": 85, "data_points": 5 },
+    { "date": "2025-01-16", "score": 87, "data_points": 3 },
+    { "date": "2025-01-17", "score": 88, "data_points": 4 },
+    { "date": "2025-01-18", "score": 90, "data_points": 2 }
+  ],
+  "period": "30d",
+  "granularity": "daily",
+  "trend_direction": "improving",
+  "site_id": "uuid",
+  "start_date": "2025-01-06",
+  "end_date": "2025-02-05"
+}
+```
+
+**Trend Directions:**
+- `improving` - Recent scores > older scores by 5+ points
+- `declining` - Recent scores < older scores by 5+ points
+- `stable` - Score variation within 5 points
+
+---
+
+# 52. Mobile Evidence Endpoints
+
+Mobile-optimized evidence upload with GPS tagging, chunked uploads, and offline sync.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 15
+
+## 52.1 POST /api/v1/evidence/mobile-upload
+
+**Purpose:** Upload evidence with mobile-specific optimizations.
+
+**Authentication:** Required
+
+**Authorization:** OWNER, ADMIN, STAFF roles
+
+**Content-Type:** multipart/form-data
+
+**Request Parameters:**
+```
+file: (binary) - Required - The evidence file
+obligation_ids: (string) - Required - JSON array or comma-separated obligation IDs
+obligation_id: (string) - Alternative - Single obligation ID
+
+# Mobile-specific metadata
+gps_latitude: (number) - Optional - GPS latitude from device
+gps_longitude: (number) - Optional - GPS longitude from device
+capture_timestamp: (string) - Optional - Camera capture timestamp (ISO 8601)
+device_info: (string) - Optional - JSON device information
+voice_note_url: (string) - Optional - URL to attached voice note
+description: (string) - Optional - Evidence description
+evidence_type: (string) - Optional - Type of evidence
+offline_sync_token: (string) - Optional - Token for idempotent offline sync
+
+# Chunked upload parameters (for large files)
+chunk_index: (integer) - Optional - Current chunk index (0-based)
+total_chunks: (integer) - Optional - Total number of chunks
+upload_id: (string) - Optional - Upload session ID for chunked uploads
+```
+
+**Supported File Types:**
+- Images: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.heic`, `.heif`
+- Videos: `.mp4`, `.mov`
+- Audio: `.m4a`, `.mp3`, `.wav`
+- Documents: `.pdf`, `.doc`, `.docx`, `.csv`, `.xlsx`
+
+**File Size Limits:**
+- Maximum: 50MB per file
+- Chunked uploads: 5MB per chunk
+
+**Response:** 201 Created
+```json
+{
+  "id": "uuid",
+  "company_id": "uuid",
+  "site_id": "uuid",
+  "file_name": "emission_reading.jpg",
+  "file_type": "IMAGE",
+  "file_size_bytes": 2500000,
+  "storage_path": "mobile/uuid.jpg",
+  "file_hash": "sha256...",
+  "gps_latitude": 51.5074,
+  "gps_longitude": -0.1278,
+  "capture_timestamp": "2025-02-05T10:30:00Z",
+  "file_url": "https://storage.../mobile/uuid.jpg",
+  "linked_obligations": [
+    { "obligation_id": "uuid", "linked_at": "2025-02-05T10:30:00Z" }
+  ],
+  "mobile_upload": true,
+  "gps_tagged": true
+}
+```
+
+**Chunked Upload Response:** 202 Accepted
+```json
+{
+  "upload_id": "uuid",
+  "chunks_uploaded": 3,
+  "total_chunks": 10,
+  "status": "in_progress",
+  "next_chunk": 3
+}
+```
+
+**Idempotent Response (duplicate sync token):** 200 OK
+```json
+{
+  "id": "uuid",
+  "already_uploaded": true,
+  "message": "Evidence was already uploaded from offline queue"
+}
+```
+
+**Business Logic:**
+- All obligations must belong to the same site
+- If `offline_sync_token` is provided, checks for existing upload (idempotency)
+- GPS coordinates are stored for location verification
+- HEIC/HEIF formats are supported for iOS devices
+
+## 52.2 POST /api/v1/evidence/offline-sync
+
+**Purpose:** Batch sync multiple offline-queued evidence items.
+
+**Authentication:** Required
+
+**Authorization:** OWNER, ADMIN, STAFF roles
+
+**Request Body:**
+```json
+{
+  "device_id": "ios-device-uuid",
+  "items": [
+    {
+      "sync_token": "unique-sync-token-1",
+      "file_name": "photo1.jpg",
+      "file_data": "base64-encoded-file-data...",
+      "file_type": "IMAGE",
+      "mime_type": "image/jpeg",
+      "obligation_ids": ["uuid-1", "uuid-2"],
+      "gps_latitude": 51.5074,
+      "gps_longitude": -0.1278,
+      "capture_timestamp": "2025-02-05T10:30:00Z",
+      "description": "Stack emission reading",
+      "evidence_type": "MONITORING",
+      "voice_note_data": "base64-encoded-audio..."
+    }
+  ]
+}
+```
+
+**Validation Rules:**
+- Maximum 20 items per sync request
+- Each item must have `sync_token` for idempotency
+- Each item must have at least one `obligation_id`
+
+**Response:** 200 OK
+```json
+{
+  "batch_id": "uuid",
+  "total_items": 5,
+  "success_count": 4,
+  "duplicate_count": 1,
+  "error_count": 0,
+  "results": [
+    { "sync_token": "token-1", "status": "success", "evidence_id": "uuid" },
+    { "sync_token": "token-2", "status": "success", "evidence_id": "uuid" },
+    { "sync_token": "token-3", "status": "duplicate", "evidence_id": "uuid" },
+    { "sync_token": "token-4", "status": "success", "evidence_id": "uuid" },
+    { "sync_token": "token-5", "status": "success", "evidence_id": "uuid" }
+  ],
+  "synced_at": "2025-02-05T10:35:00Z"
+}
+```
+
+## 52.3 GET /api/v1/evidence/offline-sync
+
+**Purpose:** Check sync status for offline tokens.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `sync_tokens` (string, optional) - Comma-separated sync tokens to check
+- `batch_id` (string, optional) - Batch ID to get all evidence from a sync
+
+**Response:** 200 OK
+```json
+{
+  "results": [
+    { "sync_token": "token-1", "exists": true, "evidence_id": "uuid" },
+    { "sync_token": "token-2", "exists": false, "evidence_id": null }
+  ]
+}
+```
+
+---
+
+# 53. Regulatory Framework Endpoints
+
+Regulatory pack generation, CCS assessments, and ELV compliance tracking.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Sections 8-10
+
+## 53.1 GET /api/v1/regulatory/packs
+
+**Purpose:** List regulatory packs for the company.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `companyId` (string, optional) - Filter by company
+- `status` (string, optional) - Filter by status: `GENERATING`, `READY`, `FAILED`, `EXPIRED`
+- `packType` (string, optional) - Filter by pack type
+
+**Pack Types:**
+- `CAR_SUBMISSION` - Compliance Assessment Report
+- `AUDIT_PACK` - General audit pack
+- `ANNUAL_REPORT` - Annual compliance report
+- `INCIDENT_RESPONSE` - Incident documentation pack
+
+**Pack Status Values:**
+- `GENERATING` - Pack generation in progress
+- `READY` - Pack ready for download
+- `FAILED` - Generation failed
+- `EXPIRED` - Pack has expired
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "company_id": "uuid",
+      "pack_type": "CAR_SUBMISSION",
+      "status": "READY",
+      "generation_date": "2025-02-01T10:00:00Z",
+      "expiry_date": "2025-03-01T10:00:00Z",
+      "site_ids": ["uuid-1", "uuid-2"],
+      "document_ids": ["uuid-1"],
+      "configuration": {},
+      "blocking_failures": [],
+      "warnings": [],
+      "passed_rules": ["RULE_001", "RULE_002"],
+      "sites": [
+        { "id": "uuid", "name": "London Site" }
+      ],
+      "created_at": "2025-02-01T10:00:00Z"
+    }
+  ],
+  "pagination": { ... }
+}
+```
+
+## 53.2 POST /api/v1/regulatory/packs
+
+**Purpose:** Generate a new regulatory pack.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Request Body:**
+```json
+{
+  "companyId": "uuid",
+  "packType": "CAR_SUBMISSION",
+  "siteIds": ["uuid-1", "uuid-2"],
+  "documentIds": ["uuid-1"],
+  "configuration": {
+    "include_evidence": true,
+    "include_timeline": true,
+    "date_range_start": "2024-01-01",
+    "date_range_end": "2024-12-31"
+  }
+}
+```
+
+**Validation Rules:**
+- `companyId` and `packType` are required
+- At least one `siteId` must be provided
+
+**Response:** 201 Created
+```json
+{
+  "packId": "uuid",
+  "status": "GENERATING",
+  "message": "Pack generation started"
+}
+```
+
+## 53.3 POST /api/v1/regulatory/packs/evaluate-readiness
+
+**Purpose:** Evaluate whether a pack can be generated (pre-validation).
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Request Body:**
+```json
+{
+  "companyId": "uuid",
+  "packType": "CAR_SUBMISSION",
+  "siteIds": ["uuid-1", "uuid-2"],
+  "documentIds": ["uuid-1"],
+  "configuration": {}
+}
+```
+
+**Response:** 200 OK
+```json
+{
+  "canGenerate": true,
+  "blockingFailures": [],
+  "warnings": [
+    {
+      "rule": "EVIDENCE_COVERAGE",
+      "message": "2 obligations have incomplete evidence",
+      "affectedItems": ["uuid-1", "uuid-2"]
+    }
+  ],
+  "passedRules": [
+    "PERMIT_VALID",
+    "DEADLINES_CURRENT",
+    "MONITORING_COMPLETE"
+  ]
+}
+```
+
+## 53.4 GET /api/v1/regulatory/ccs/assessments
+
+**Purpose:** List CCS (Compliance Classification Scheme) assessments.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `companyId` (string, required) - Company ID
+- `siteId` (string, optional) - Filter by site
+- `year` (integer, optional) - Filter by compliance year
+
+**Response:** 200 OK
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "site_id": "uuid",
+      "company_id": "uuid",
+      "compliance_year": 2024,
+      "assessment_date": "2024-09-15",
+      "total_score": 25,
+      "compliance_band": "B",
+      "assessed_by": "REGULATOR",
+      "car_reference": "EA/CAR/2024/12345",
+      "car_issued_date": "2024-09-20",
+      "appeal_deadline": "2024-10-20",
+      "notes": "Minor non-compliances identified",
+      "site": { "id": "uuid", "name": "London Site" },
+      "created_at": "2024-09-15T10:00:00Z"
+    }
+  ],
+  "pagination": { ... }
+}
+```
+
+**Compliance Bands:**
+- `A` - Score 0 (Excellent)
+- `B` - Score 1-30 (Good)
+- `C` - Score 31-60 (Requires Improvement)
+- `D` - Score 61-100 (Poor)
+- `E` - Score 101-150 (Unacceptable)
+- `F` - Score >150 (Serious Non-Compliance)
+
+## 53.5 POST /api/v1/regulatory/ccs/assessments
+
+**Purpose:** Create a new CCS assessment record.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Request Body:**
+```json
+{
+  "siteId": "uuid",
+  "companyId": "uuid",
+  "complianceYear": 2024,
+  "assessmentDate": "2024-09-15",
+  "totalScore": 25,
+  "assessedBy": "REGULATOR",
+  "carReference": "EA/CAR/2024/12345",
+  "carIssuedDate": "2024-09-20",
+  "appealDeadline": "2024-10-20",
+  "notes": "Minor non-compliances identified"
+}
+```
+
+**Assessed By Values:**
+- `REGULATOR` - Assessment by regulator (EA, SEPA, NRW, NIEA)
+- `SELF` - Self-assessment
+- `CONSULTANT` - Third-party consultant assessment
+
+**Response:** 201 Created
+
+## 53.6 GET /api/v1/regulatory/ccs/dashboard
+
+**Purpose:** Get CCS dashboard metrics for a site.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `siteId` (string, required) - Site ID
+- `companyId` (string, required) - Company ID
+
+**Response:** 200 OK
+```json
+{
+  "currentAssessment": {
+    "id": "uuid",
+    "compliance_year": 2024,
+    "compliance_band": "B",
+    "total_score": 25
+  },
+  "historicalBands": [
+    { "year": 2022, "band": "C", "score": 45 },
+    { "year": 2023, "band": "B", "score": 30 },
+    { "year": 2024, "band": "B", "score": 25 }
+  ],
+  "riskFactors": [
+    { "factor": "Overdue deadlines", "impact": 5, "count": 2 },
+    { "factor": "Missing evidence", "impact": 3, "count": 1 }
+  ],
+  "trend": "IMPROVING"
+}
+```
+
+## 53.7 GET /api/v1/regulatory/elv/summary
+
+**Purpose:** Get ELV (Emission Limit Values) compliance summary.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `siteId` (string, required) - Site ID
+- `companyId` (string, required) - Company ID
+
+**Response:** 200 OK
+```json
+{
+  "totalConditions": 15,
+  "compliantConditions": 12,
+  "nonCompliantConditions": 2,
+  "upcomingMonitoring": 3,
+  "overdueMonitoring": 1,
+  "recentExceedances": [
+    {
+      "condition": {
+        "id": "uuid",
+        "pollutant": "NOx",
+        "limit_value": 100,
+        "unit": "mg/Nm³"
+      },
+      "result": {
+        "id": "uuid",
+        "measured_value": 115,
+        "test_date": "2025-01-15",
+        "is_compliant": false
+      }
+    }
+  ]
+}
+```
+
+## 53.8 GET /api/v1/regulatory/dashboard/stats
+
+**Purpose:** Get company-wide regulatory dashboard statistics.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users
+
+**Query Parameters:**
+- `companyId` (string, required) - Company ID
+
+**Response:** 200 OK
+```json
+{
+  "totalSites": 5,
+  "sitesWithCcsAssessment": 4,
+  "complianceBandDistribution": [
+    { "band": "A", "count": 1, "percentage": 20, "sites": [] },
+    { "band": "B", "count": 2, "percentage": 40, "sites": [] },
+    { "band": "C", "count": 1, "percentage": 20, "sites": [] },
+    { "band": "D", "count": 0, "percentage": 0, "sites": [] },
+    { "band": "E", "count": 0, "percentage": 0, "sites": [] },
+    { "band": "F", "count": 0, "percentage": 0, "sites": [] }
+  ],
+  "activeIncidents": 2,
+  "openCapas": 5,
+  "overdueCapas": 1,
+  "upcomingMonitoring": 8,
+  "packsPendingGeneration": 1,
+  "firstYearModeActive": true,
+  "firstYearModeExpiry": "2025-06-30"
+}
+```
+
+---
+
+# 54. User Activity Reports Endpoints
+
+Individual user activity metrics and reporting.
+
+Reference: `docs/specs/90_Enhanced_Features_V2.md` Section 13
+
+## 54.1 GET /api/v1/reports/user-activity
+
+**Purpose:** Get activity report for a specific user.
+
+**Authentication:** Required
+
+**Authorization:** All authenticated users (can view own activity, admins can view others)
+
+**Query Parameters:**
+- `user_id` (string, optional) - User ID (defaults to current user)
+- `site_id` (string, optional) - Filter by specific site
+- `period` (string, optional) - Time period: `7d`, `30d`, `90d` (default: `30d`)
+
+**Response:** 200 OK
+```json
+{
+  "data": {
+    "user_id": "uuid",
+    "user_name": "John Smith",
+    "user_email": "john@example.com",
+    "period": {
+      "start": "2025-01-06",
+      "end": "2025-02-05"
+    },
+    "totals": {
+      "total_actions": 156,
+      "obligations_completed": 45,
+      "evidence_uploaded": 32,
+      "audit_log_entries": 78
+    },
+    "by_activity_type": {
+      "OBLIGATION_COMPLETED": 45,
+      "EVIDENCE_UPLOADED": 32,
+      "DOCUMENT_VIEWED": 50,
+      "DEADLINE_EXTENDED": 3,
+      "REVIEW_APPROVED": 26
+    },
+    "by_day": [
+      { "date": "2025-01-06", "count": 8 },
+      { "date": "2025-01-07", "count": 12 },
+      { "date": "2025-01-08", "count": 5 }
+    ]
+  }
+}
+```
+
+**Error Codes:**
+- `404 NOT_FOUND` - User not found
+
+---
+
+# 55. OpenAPI Specification
 
 The complete OpenAPI 3.0 specification is available at `/api/v1/openapi.json` and includes all endpoints documented in this specification.
 
@@ -12596,9 +13990,9 @@ The complete OpenAPI 3.0 specification is available at `/api/v1/openapi.json` an
 
 ---
 
-# 45. TypeScript Interfaces
+# 56. TypeScript Interfaces
 
-## 45.1 Common Interfaces
+## 56.1 Common Interfaces
 
 ```typescript
 // Pagination
@@ -12630,7 +14024,7 @@ interface FilterParams {
 }
 ```
 
-## 35.2 Document Interfaces
+## 56.2 Document Interfaces
 
 ```typescript
 interface Document {
@@ -12651,7 +14045,7 @@ interface Document {
 }
 ```
 
-## 35.3 Obligation Interfaces
+## 56.3 Obligation Interfaces
 
 ```typescript
 interface Obligation {
@@ -12674,7 +14068,7 @@ interface Obligation {
 }
 ```
 
-## 35.4 Schedule Interfaces
+## 56.4 Schedule Interfaces
 
 ```typescript
 interface Schedule {
@@ -12693,7 +14087,7 @@ interface Schedule {
 }
 ```
 
-## 35.5 Notification Interfaces
+## 56.5 Notification Interfaces
 
 ```typescript
 interface Notification {
@@ -12722,7 +14116,7 @@ interface NotificationPreference {
 }
 ```
 
-## 35.6 Module Interfaces
+## 56.6 Module Interfaces
 
 ```typescript
 interface Module {
