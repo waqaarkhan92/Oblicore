@@ -1,0 +1,40 @@
+# Large files and logs
+*.log
+worker.log
+
+# Dependencies (Vercel installs its own)
+node_modules/
+
+# Build artifacts
+.next/
+out/
+build/
+dist/
+
+# Testing
+coverage/
+.nyc_output
+
+# Local config
+.env.local
+.env*.local
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed for deployment)
+docs/
+*.md
+!README.md
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx

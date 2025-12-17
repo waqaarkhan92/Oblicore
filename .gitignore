@@ -65,3 +65,4 @@ temp/
 playwright-report/
 test-results/
 extraction-output.json
+.vercel
