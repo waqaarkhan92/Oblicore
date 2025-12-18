@@ -13,7 +13,7 @@ const footerLinks = {
   ],
   resources: [
     { name: 'Blog', href: '/blog' },
-    { name: 'Case Studies', href: '/case-studies' },
+    { name: 'Use Cases', href: '/use-cases' },
     { name: 'Documentation', href: '/docs' },
     { name: 'API Reference', href: '/docs/api' },
     { name: 'Help Centre', href: '/help' },

@@ -13,7 +13,7 @@ const navItems = [
 
 const resourceItems = [
   { name: 'Blog', href: '/blog', description: 'Compliance insights & updates' },
-  { name: 'Case Studies', href: '/case-studies', description: 'Customer success stories' },
+  { name: 'Use Cases', href: '/use-cases', description: 'How EcoComply helps different industries' },
   { name: 'Documentation', href: '/docs', description: 'Guides & API reference' },
 ];
 
