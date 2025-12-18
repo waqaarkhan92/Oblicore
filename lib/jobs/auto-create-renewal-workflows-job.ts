@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface AutoCreateRenewalWorkflowsJobInput {
   company_id?: string;
@@ -122,7 +123,7 @@ export async function processAutoCreateRenewalWorkflowsJob(
 
         // Step 4: Create notification
         if (owner && owner.email) {
-          const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+          const baseUrl = getAppUrl();
           const actionUrl = `${baseUrl}/module-1/permit-workflows/${workflow.id}`;
 
           const { error: notifyError } = await supabaseAdmin

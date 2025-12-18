@@ -89,7 +89,7 @@ export async function GET(
 
     // Generate download URL
     // In production, this would be a signed URL with expiration
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.ecocomply.io';
     const downloadUrl = `${baseUrl}/api/v1/packs/${packId}/download?token=${distribution.shared_link_token}`;
 
     const response = successResponse(

@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface DetectBreachesAndAlertsJobInput {
   company_id?: string;
@@ -113,7 +114,7 @@ export async function processDetectBreachesAndAlertsJob(
           ].filter(Boolean);
 
           // Generate action URL
-          const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+          const baseUrl = getAppUrl();
           const actionUrl = `${baseUrl}/sites/${obligation.site_id}/obligations/${obligation.id}`;
 
           // Create notifications
@@ -242,7 +243,7 @@ export async function processDetectBreachesAndAlertsJob(
             .eq('company_id', obligation.company_id)
             .in('id', await getRoleUserIds(obligation.company_id, ['ADMIN', 'OWNER']));
 
-          const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+          const baseUrl = getAppUrl();
           const actionUrl = `${baseUrl}/sites/${obligation.site_id}/obligations/${obligation.id}`;
 
           // Create SLA breach notifications

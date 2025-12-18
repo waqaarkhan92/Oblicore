@@ -5,6 +5,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface DigestNotification {
   notification_id: string;
@@ -134,7 +135,7 @@ export function generateDigestContent(
 
   htmlContent += `
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com'}/notifications" 
+      <a href="${getAppUrl()}/notifications" 
          style="background-color: #026A67; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
         View All Notifications
       </a>

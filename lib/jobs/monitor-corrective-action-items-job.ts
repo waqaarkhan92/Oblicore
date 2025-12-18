@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface MonitorCorrectiveActionItemsJobInput {
   company_id?: string;
@@ -108,7 +109,7 @@ export async function processMonitorCorrectiveActionItemsJob(
             ? `The corrective action item "${item.item_title}" is ${daysOverdue} day(s) overdue. Please complete it as soon as possible.`
             : `The corrective action item "${item.item_title}" is due in 3 days. Please ensure it is completed on time.`;
 
-          const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+          const baseUrl = getAppUrl();
           const actionUrl = `${baseUrl}/module-2/corrective-actions/${action.id}/items/${item.id}`;
 
           // Send reminder to assigned user

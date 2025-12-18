@@ -6,7 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { checkEscalation, createEscalationNotification } from '@/lib/services/escalation-service';
+import { getAppUrl } from '@/lib/env';
 
 export interface DeadlineAlertJobData {
   company_id?: string;
@@ -155,15 +155,20 @@ export async function processDeadlineAlertJob(job: Job<DeadlineAlertJobData>): P
               deadline_date: deadline.due_date,
               days_remaining: daysUntilDue,
               company_name: site.company_id, // Will be resolved in template
-              action_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com'}/sites/${site.id}/obligations/${obligation.id}`,
+              action_url: `${getAppUrl()}/sites/${site.id}/obligations/${obligation.id}`,
             },
           }));
 
-          const { data: insertedNotifications } = await supabaseAdmin
+          const { error: notifyError } = await supabaseAdmin
             .from('notifications')
             .insert(notifications)
             .select('id')
             .limit(1);
+
+          if (notifyError) {
+            console.error(`Failed to create deadline notifications for obligation ${obligation.id}:`, notifyError);
+            continue;
+          }
 
           alertsCreated[alertLevel]++;
 

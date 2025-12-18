@@ -183,7 +183,12 @@ export async function processEscalationCheckJob(
           },
         }));
 
-        await supabaseAdmin.from('notifications').insert(notifications);
+        const { error: notifyError } = await supabaseAdmin.from('notifications').insert(notifications);
+
+        if (notifyError) {
+          console.error(`Failed to create escalation notifications for ${item.entity_type} ${item.entity_id}:`, notifyError);
+          continue;
+        }
 
         escalated++;
       } catch (error: any) {

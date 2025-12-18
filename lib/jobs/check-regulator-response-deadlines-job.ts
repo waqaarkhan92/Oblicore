@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface CheckRegulatorResponseDeadlinesJobInput {
   company_id?: string;
@@ -89,7 +90,7 @@ export async function processCheckRegulatorResponseDeadlinesJob(
         }
 
         const priority = determineAlertPriority(daysOverdue);
-        const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+        const baseUrl = getAppUrl();
         const actionUrl = `${baseUrl}/module-1/permit-workflows/${workflow.id}`;
 
         // Step 3: Create alert notification for permit owner

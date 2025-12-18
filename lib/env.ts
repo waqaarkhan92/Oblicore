@@ -197,3 +197,23 @@ export const env = validateEnv();
 // Export validation function for use in scripts
 export { validateEnv };
 
+/**
+ * Production app domain - used as fallback when env vars are not set
+ */
+export const APP_DOMAIN = 'https://app.ecocomply.io';
+
+/**
+ * Get the application URL consistently across server and client code.
+ * Uses environment variables with production fallback.
+ *
+ * Priority: APP_URL > NEXT_PUBLIC_APP_URL > BASE_URL > APP_DOMAIN fallback
+ */
+export function getAppUrl(): string {
+  return (
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    env.BASE_URL ||
+    APP_DOMAIN
+  );
+}
+

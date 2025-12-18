@@ -117,7 +117,7 @@ async function processValidationPhase(excelImport: any): Promise<void> {
     .eq('id', excelImport.id);
 
   // Create notification
-  await supabaseAdmin.from('notifications').insert({
+  const { error: notifyError } = await supabaseAdmin.from('notifications').insert({
     user_id: excelImport.user_id,
     company_id: excelImport.company_id,
     site_id: excelImport.site_id,
@@ -132,6 +132,10 @@ async function processValidationPhase(excelImport: any): Promise<void> {
     status: 'PENDING',
     scheduled_for: new Date().toISOString(),
   });
+
+  if (notifyError) {
+    console.error(`Failed to create excel import validation notification for ${excelImport.id}:`, notifyError);
+  }
 
   console.log(`Excel import validation completed: ${excelImport.id} - ${validRows.length} valid, ${errorRows.length} errors`);
 }
@@ -225,7 +229,7 @@ async function processBulkCreationPhase(excelImport: any): Promise<void> {
     .eq('id', excelImport.id);
 
   // Create completion notification
-  await supabaseAdmin.from('notifications').insert({
+  const { error: completionNotifyError } = await supabaseAdmin.from('notifications').insert({
     user_id: excelImport.user_id,
     company_id: excelImport.company_id,
     site_id: excelImport.site_id,
@@ -240,6 +244,10 @@ async function processBulkCreationPhase(excelImport: any): Promise<void> {
     status: 'PENDING',
     scheduled_for: new Date().toISOString(),
   });
+
+  if (completionNotifyError) {
+    console.error(`Failed to create excel import completion notification for ${excelImport.id}:`, completionNotifyError);
+  }
 
   console.log(`Excel import bulk creation completed: ${excelImport.id} - ${createdObligationIds.length} obligations created`);
 }

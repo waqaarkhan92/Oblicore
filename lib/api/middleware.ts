@@ -52,13 +52,14 @@ export async function verifyToken(token: string): Promise<AuthenticatedUser | nu
 
     // Fetch user details with roles AND consultant status in a single query using joins
     // This eliminates the N+1 query by combining both lookups
+    // Note: !user_id syntax explicitly specifies which foreign key to use for the relationship
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select(`
         id,
         email,
         company_id,
-        user_roles (role),
+        user_roles!user_id (role),
         consultant_client_assignments!consultant_id (consultant_id, status)
       `)
       .eq('id', user.id)

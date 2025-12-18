@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface EvidenceGapDetectionJobData {
   company_id?: string;
@@ -307,11 +308,16 @@ export async function processEvidenceGapDetectionJob(
               gap_type: gap.gap_type,
               days_remaining: gap.days_until_deadline,
               severity: gap.severity,
-              action_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com'}/dashboard/obligations/${gap.obligation_id}`,
+              action_url: `${getAppUrl()}/dashboard/obligations/${gap.obligation_id}`,
             },
           }));
 
-          await supabaseAdmin.from('notifications').insert(notifications);
+          const { error: notifyError } = await supabaseAdmin.from('notifications').insert(notifications);
+
+          if (notifyError) {
+            console.error(`Failed to create evidence gap notifications for gap ${gap.id}:`, notifyError);
+            continue;
+          }
 
           // Mark gap as notified
           await supabaseAdmin

@@ -158,6 +158,50 @@ export async function createTestObligation(siteId: string, obligationData: Parti
 }
 
 /**
+ * Create test evidence item
+ * Uses mock in test environment to avoid rate limits
+ */
+export async function createTestEvidence(
+  companyId: string,
+  siteId: string,
+  evidenceData: Partial<any> = {}
+) {
+  if (isTestEnv && !process.env.USE_REAL_SUPABASE) {
+    return {
+      id: 'mock-evidence-id-' + Math.random().toString(36).slice(2),
+      company_id: companyId,
+      site_id: siteId,
+      file_name: evidenceData.file_name || 'test-evidence.pdf',
+      file_type: evidenceData.file_type || 'PDF',
+      file_size_bytes: evidenceData.file_size_bytes || 1024,
+      mime_type: evidenceData.mime_type || 'application/pdf',
+      storage_path: evidenceData.storage_path || 'test-path.pdf',
+      file_hash: evidenceData.file_hash || 'test-hash',
+      ...evidenceData,
+    };
+  }
+
+  const { data: evidence, error } = await testDb
+    .from('evidence_items')
+    .insert({
+      company_id: companyId,
+      site_id: siteId,
+      file_name: evidenceData.file_name || 'test-evidence.pdf',
+      file_type: evidenceData.file_type || 'PDF',
+      file_size_bytes: evidenceData.file_size_bytes || 1024,
+      mime_type: evidenceData.mime_type || 'application/pdf',
+      storage_path: evidenceData.storage_path || 'test-path.pdf',
+      file_hash: evidenceData.file_hash || 'test-hash',
+      ...evidenceData,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return evidence;
+}
+
+/**
  * Clean up test data
  * No-op in mock environment
  */
@@ -169,7 +213,7 @@ export async function cleanupTestData() {
 
   // Delete in reverse order of dependencies
   await testDb.from('obligation_evidence_links').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await testDb.from('evidence').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await testDb.from('evidence_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await testDb.from('deadlines').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await testDb.from('obligations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
   await testDb.from('documents').delete().neq('id', '00000000-0000-0000-0000-000000000000');

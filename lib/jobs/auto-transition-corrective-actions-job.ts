@@ -6,6 +6,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface AutoTransitionCorrectiveActionsJobInput {
   company_id?: string;
@@ -97,7 +98,7 @@ export async function processAutoTransitionCorrectiveActionsJob(
             .single();
 
           if (!creatorError && creator) {
-            const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com';
+            const baseUrl = getAppUrl();
             const actionUrl = `${baseUrl}/module-2/corrective-actions/${action.id}`;
 
             const { error: notifyError } = await supabaseAdmin

@@ -69,3 +69,11 @@ process.env.NEXT_PUBLIC_API_URL = '/api/v1';
 process.env.NODE_ENV = 'test';
 process.env.DISABLE_EMAIL_VERIFICATION = 'true';
 
+// Map Supabase vars to NEXT_PUBLIC_ variants for integration tests
+if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL;
+}
+if (process.env.SUPABASE_ANON_KEY && !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+}
+

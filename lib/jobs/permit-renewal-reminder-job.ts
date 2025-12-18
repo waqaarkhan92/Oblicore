@@ -170,7 +170,12 @@ export async function processPermitRenewalReminderJob(job: Job<PermitRenewalRemi
             },
           }));
 
-          await supabaseAdmin.from('notifications').insert(notifications);
+          const { error: notifyError } = await supabaseAdmin.from('notifications').insert(notifications);
+
+          if (notifyError) {
+            console.error(`Failed to create permit renewal notifications for document ${document.id}:`, notifyError);
+            continue;
+          }
 
           remindersCreated.push({
             document_id: document.id,

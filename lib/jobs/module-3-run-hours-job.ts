@@ -165,7 +165,11 @@ async function createBreachAlert(
         scheduled_for: new Date().toISOString(),
       }));
 
-      await supabaseAdmin.from('notifications').insert(notifications);
+      const { error: notifyError } = await supabaseAdmin.from('notifications').insert(notifications);
+
+      if (notifyError) {
+        console.error(`Failed to create runtime alert notifications for generator ${generator.id}:`, notifyError);
+      }
     }
   }
 }

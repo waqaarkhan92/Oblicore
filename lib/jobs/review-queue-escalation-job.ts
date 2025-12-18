@@ -11,6 +11,7 @@
 
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getAppUrl } from '@/lib/env';
 
 export interface ReviewQueueEscalationJobData {
   company_id?: string; // Optional: limit to specific company
@@ -229,7 +230,7 @@ export async function processReviewQueueEscalationJob(
               review_type: candidate.review_type,
               hallucination_risk: candidate.hallucination_risk,
               site_name: candidate.site_name,
-              action_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.epcompliance.com'}/dashboard/review-queue/${candidate.id}`,
+              action_url: `${getAppUrl()}/dashboard/review-queue/${candidate.id}`,
             },
           }));
 

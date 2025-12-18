@@ -40,13 +40,23 @@ describeIntegration('Notifications API Integration Tests', () => {
   beforeAll(async () => {
     const supabase = getSupabaseAdmin();
 
+    // Clean up any leftover test data from previous runs
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const existingTestUser = existingUsers?.users?.find(u => u.email === 'notifications-test@example.com');
+    if (existingTestUser) {
+      await supabase.from('user_roles').delete().eq('user_id', existingTestUser.id);
+      await supabase.from('notifications').delete().eq('user_id', existingTestUser.id);
+      await supabase.from('users').delete().eq('id', existingTestUser.id);
+      await supabase.auth.admin.deleteUser(existingTestUser.id);
+    }
+    await supabase.from('companies').delete().eq('name', 'Test Notifications Company');
+
     // Create test company
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .insert({
         name: 'Test Notifications Company',
-        industry: 'Testing',
-        status: 'ACTIVE',
+        billing_email: 'billing-notifications-test@example.com',
       })
       .select()
       .single();
@@ -69,16 +79,20 @@ describeIntegration('Notifications API Integration Tests', () => {
       .insert({
         id: authData.user.id,
         email: 'notifications-test@example.com',
+        full_name: 'Test Notifications User',
         company_id: testCompany.id,
-        role: 'ADMIN',
-        status: 'ACTIVE',
-        email_verified: true,
       })
       .select()
       .single();
 
     if (userError) throw userError;
     testUser = user;
+
+    // Create user role
+    await supabase.from('user_roles').insert({
+      user_id: authData.user.id,
+      role: 'ADMIN',
+    });
 
     // Sign in to get auth token
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -103,6 +117,7 @@ describeIntegration('Notifications API Integration Tests', () => {
 
     // Clean up user
     if (testUser) {
+      await supabase.from('user_roles').delete().eq('user_id', testUser.id);
       await supabase.from('users').delete().eq('id', testUser.id);
       await supabase.auth.admin.deleteUser(testUser.id);
     }
@@ -122,13 +137,13 @@ describeIntegration('Notifications API Integration Tests', () => {
       const supabase = getSupabaseAdmin();
 
       // Create test notifications
-      const { data: notification1 } = await supabase
+      const { data: notification1, error: err1 } = await supabase
         .from('notifications')
         .insert({
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'OBLIGATION_DUE',
+          notification_type: 'DEADLINE_WARNING_7D',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'Test Notification 1',
@@ -140,13 +155,15 @@ describeIntegration('Notifications API Integration Tests', () => {
         .select()
         .single();
 
-      const { data: notification2 } = await supabase
+      if (err1) throw err1;
+
+      const { data: notification2, error: err2 } = await supabase
         .from('notifications')
         .insert({
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'EVIDENCE_UPLOADED',
+          notification_type: 'AUDIT_PACK_READY',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'Test Notification 2',
@@ -157,6 +174,8 @@ describeIntegration('Notifications API Integration Tests', () => {
         })
         .select()
         .single();
+
+      if (err2) throw err2;
 
       if (notification1) testNotifications.push(notification1.id);
       if (notification2) testNotifications.push(notification2.id);
@@ -170,7 +189,7 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
+      // API returns data directly, not wrapped in success
       expect(Array.isArray(data.data)).toBe(true);
       expect(data.data.length).toBeGreaterThanOrEqual(2);
       expect(data.pagination).toBeDefined();
@@ -186,7 +205,7 @@ describeIntegration('Notifications API Integration Tests', () => {
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'TEST',
+          notification_type: 'OVERDUE_OBLIGATION',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'Read Notification',
@@ -205,7 +224,7 @@ describeIntegration('Notifications API Integration Tests', () => {
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'TEST',
+          notification_type: 'OVERDUE_OBLIGATION',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'Unread Notification',
@@ -232,8 +251,6 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
-
       // All returned notifications should be unread
       data.data.forEach((notif: any) => {
         expect(notif.read_at).toBeUndefined();
@@ -251,7 +268,7 @@ describeIntegration('Notifications API Integration Tests', () => {
             user_id: testUser.id,
             company_id: testCompany.id,
             recipient_email: testUser.email,
-            notification_type: 'TEST',
+            notification_type: 'OVERDUE_OBLIGATION',
             channel: 'IN_APP',
             priority: 'NORMAL',
             subject: `Test Notification ${i}`,
@@ -275,7 +292,7 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const responseData = await response.json();
-      expect(responseData.success).toBe(true);
+      expect(Array.isArray(responseData.data)).toBe(true);
       expect(responseData.data.length).toBeLessThanOrEqual(3);
       expect(responseData.pagination.has_more).toBeDefined();
     });
@@ -325,7 +342,7 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -335,7 +352,7 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(401);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
     });
   });
 
@@ -350,7 +367,7 @@ describeIntegration('Notifications API Integration Tests', () => {
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'TEST',
+          notification_type: 'OVERDUE_OBLIGATION',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'To Be Read',
@@ -377,7 +394,7 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
+      expect(data.data).toBeDefined();
 
       // Verify notification is marked as read
       const { data: updatedNotif } = await supabase
@@ -436,7 +453,7 @@ describeIntegration('Notifications API Integration Tests', () => {
             user_id: testUser.id,
             company_id: testCompany.id,
             recipient_email: testUser.email,
-            notification_type: 'TEST',
+            notification_type: 'OVERDUE_OBLIGATION',
             channel: 'IN_APP',
             priority: 'NORMAL',
             subject: `Unread ${i}`,
@@ -458,7 +475,7 @@ describeIntegration('Notifications API Integration Tests', () => {
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'TEST',
+          notification_type: 'OVERDUE_OBLIGATION',
           channel: 'IN_APP',
           priority: 'NORMAL',
           subject: 'Read',
@@ -482,8 +499,8 @@ describeIntegration('Notifications API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
-      expect(data.data.count).toBe(3);
+      expect(data.data).toBeDefined();
+      expect(data.data.unread_count).toBe(3);
     });
 
     it('should require authentication', async () => {
@@ -518,7 +535,7 @@ describeIntegration('Notifications API Integration Tests', () => {
           user_id: testUser.id,
           company_id: testCompany.id,
           recipient_email: testUser.email,
-          notification_type: 'OBLIGATION_DUE',
+          notification_type: 'DEADLINE_WARNING_7D',
           channel: 'IN_APP',
           priority: 'HIGH',
           subject: 'Obligation Due Soon',

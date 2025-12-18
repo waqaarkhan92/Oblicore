@@ -697,17 +697,18 @@ export class MultiPassExtractor {
     const sections: string[] = [];
 
     // Table patterns to look for - broader patterns
+    // Note: Using 'gi' NOT 'gim' - multiline mode makes $ match end-of-line, breaking the patterns
     const tablePatterns = [
       // Standard EA table references
-      /Table\s+S1\.2[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S1\.3[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S1\.4[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S3\.1[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S3\.2[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S3\.3[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
-      /Table\s+S3\.4[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z]|\n\n\n)/gim,
+      /Table\s+S1\.2[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S1\.3[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S1\.4[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S3\.1[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S3\.2[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S3\.3[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
+      /Table\s+S3\.4[\s\S]{0,10000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|\n\n\n|$)/gi,
       // Schedule tables
-      /Schedule\s+\d+[\s\S]{0,15000}?(?=Schedule\s+\d|Annex|Appendix|\n\n\n\n)/gim,
+      /Schedule\s+\d+[\s\S]{0,15000}?(?=Schedule\s+\d|Annex|Appendix|\n\n\n\n|$)/gi,
     ];
 
     for (const pattern of tablePatterns) {
@@ -726,10 +727,11 @@ export class MultiPassExtractor {
    * Extract improvement section
    */
   private extractImprovementSection(documentText: string): string | null {
+    // Note: Using 'gi' NOT 'gim' - multiline mode makes $ match end-of-line
     const patterns = [
-      /Table\s+S1\.3[\s\S]{0,15000}?(?=Table\s+S1\.[4-9]|Schedule|^\d+\.\d+\s+[A-Z])/gim,
-      /Improvement\s+Programme[\s\S]{0,15000}?(?=Table\s+S|Schedule\s+\d|^\d+\.\d+\s+[A-Z])/gim,
-      /IC\d+[\s\S]{0,10000}?(?=Schedule|Annex|^\d+\.\d+\s+[A-Z])/gim,
+      /Table\s+S1\.3[\s\S]{0,15000}?(?=Table\s+S1\.[4-9]|Table\s+S3|Schedule|\d+\.\d+\s+[A-Z]|$)/gi,
+      /Improvement\s+Programme[\s\S]{0,15000}?(?=Table\s+S|Schedule\s+\d|\d+\.\d+\s+[A-Z]|$)/gi,
+      /IC\d+[\s\S]{0,10000}?(?=Schedule|Annex|\d+\.\d+\s+[A-Z]|$)/gi,
     ];
 
     for (const pattern of patterns) {
@@ -756,27 +758,29 @@ export class MultiPassExtractor {
     const sections: string[] = [];
 
     // Strategy 1: Find "Schedule 3 – Emissions" section (actual table location)
+    // Note: Using 'gi' NOT 'gim' - multiline mode makes $ match end-of-line
     const schedule3Match = documentText.match(/Schedule\s+3\s*[–—-]\s*Emissions[\s\S]{0,20000}?(?=Schedule\s+4|Schedule\s+5|Schedule\s+6|Schedule\s+7|END OF PERMIT|$)/gi);
     if (schedule3Match) {
       sections.push(...schedule3Match.map(m => m.trim()).filter(m => m.length > 500));
     }
 
-    // Strategy 2: Find content containing mg/m units (actual ELV data)
-    const mgMatch = documentText.match(/(?:Parameter|Emission\s+point)[\s\S]{0,15000}?mg\/m[\s\S]{0,10000}?(?=Schedule\s+\d|Table\s+S4|END OF PERMIT|\n\n\n\n)/gi);
+    // Strategy 2: Find content containing mg/m or mg/Nm³ units (actual ELV data)
+    const mgMatch = documentText.match(/(?:Parameter|Emission\s+point)[\s\S]{0,15000}?mg\/(?:N)?m[\s\S]{0,10000}?(?=Schedule\s+\d|Table\s+S4|END OF PERMIT|\n\n\n\n|$)/gi);
     if (mgMatch) {
-      sections.push(...mgMatch.map(m => m.trim()).filter(m => m.length > 500 && m.includes('mg/m')));
+      sections.push(...mgMatch.map(m => m.trim()).filter(m => m.length > 100 && /mg\/(?:N)?m/.test(m)));
     }
 
     // Strategy 3: Find Table S3.1 with actual table content (has headers like "Parameter", "Limit")
-    const tableMatch = documentText.match(/Table\s+S3\.1[^T]*(?:Parameter|Substance|Emission\s+point)[\s\S]{0,15000}?(?=Table\s+S3\.[2-9]|Table\s+S4|Schedule\s+4|\n\n\n\n)/gi);
+    const tableMatch = documentText.match(/Table\s+S3\.1[\s\S]*?(?:Parameter|Substance|Emission\s+point|Limit|Unit)[\s\S]{0,15000}?(?=Table\s+S3\.[2-9]|Table\s+S4|Schedule\s+4|\n\n\n\n|$)/gi);
     if (tableMatch) {
       sections.push(...tableMatch.map(m => m.trim()).filter(m => m.length > 500));
     }
 
     // Strategy 4: Original patterns as fallback
+    // Note: Using 'gi' NOT 'gim' - multiline mode makes $ match end-of-line
     const fallbackPatterns = [
-      /Emission\s+Limit\s+Values?[\s\S]{0,10000}?(?=Table\s+S|Schedule|^\d+\.\d+\s+[A-Z])/gim,
-      /Point\s+Source\s+Emissions?\s+to\s+air[\s\S]{0,15000}?(?=Point\s+Source|Schedule|Table\s+S[4-9])/gim,
+      /Emission\s+Limit\s+Values?[\s\S]{0,10000}?(?=Table\s+S|Schedule|\d+\.\d+\s+[A-Z]|$)/gi,
+      /Point\s+Source\s+Emissions?\s+to\s+air[\s\S]{0,15000}?(?=Point\s+Source|Schedule|Table\s+S[4-9]|$)/gi,
     ];
 
     for (const pattern of fallbackPatterns) {

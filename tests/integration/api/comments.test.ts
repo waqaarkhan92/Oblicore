@@ -41,13 +41,23 @@ describeIntegration('Comments API Integration Tests', () => {
   beforeAll(async () => {
     const supabase = getSupabaseAdmin();
 
+    // Clean up any leftover test data from previous runs
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const existingTestUser = existingUsers?.users?.find(u => u.email === 'comments-test@example.com');
+    if (existingTestUser) {
+      await supabase.from('user_roles').delete().eq('user_id', existingTestUser.id);
+      await supabase.from('comments').delete().eq('user_id', existingTestUser.id);
+      await supabase.from('users').delete().eq('id', existingTestUser.id);
+      await supabase.auth.admin.deleteUser(existingTestUser.id);
+    }
+    await supabase.from('companies').delete().eq('name', 'Test Comments Company');
+
     // Create test company
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .insert({
         name: 'Test Comments Company',
-        industry: 'Testing',
-        status: 'ACTIVE',
+        billing_email: 'billing-comments-test@example.com',
       })
       .select()
       .single();
@@ -72,15 +82,18 @@ describeIntegration('Comments API Integration Tests', () => {
         email: 'comments-test@example.com',
         full_name: 'Test Comments User',
         company_id: testCompany.id,
-        role: 'ADMIN',
-        status: 'ACTIVE',
-        email_verified: true,
       })
       .select()
       .single();
 
     if (userError) throw userError;
     testUser = user;
+
+    // Create user role
+    await supabase.from('user_roles').insert({
+      user_id: authData.user.id,
+      role: 'ADMIN',
+    });
 
     // Sign in to get auth token
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -108,6 +121,7 @@ describeIntegration('Comments API Integration Tests', () => {
 
     // Clean up user
     if (testUser) {
+      await supabase.from('user_roles').delete().eq('user_id', testUser.id);
       await supabase.from('users').delete().eq('id', testUser.id);
       await supabase.auth.admin.deleteUser(testUser.id);
     }
@@ -140,7 +154,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(201);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
+      expect(data.data).toBeDefined();
       expect(data.data.id).toBeDefined();
       expect(data.data.content).toBe('This is a test comment');
       expect(data.data.entity_type).toBe('obligation');
@@ -172,7 +186,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(201);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
+      expect(data.data).toBeDefined();
       expect(data.data.mentions).toBeDefined();
       expect(data.data.mentions).toContain(mentionedUserId);
 
@@ -215,7 +229,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(replyResponse.status).toBe(201);
 
       const replyData = await replyResponse.json();
-      expect(replyData.success).toBe(true);
+      expect(replyData.data).toBeDefined();
       expect(replyData.data.parent_id).toBe(parentData.data.id);
 
       testComments.push(replyData.data.id);
@@ -237,7 +251,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -258,7 +272,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
     });
 
     it('should reject invalid entity_type', async () => {
@@ -278,7 +292,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -300,7 +314,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
     });
 
     it('should require authentication', async () => {
@@ -354,7 +368,6 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
       expect(Array.isArray(data.data)).toBe(true);
       expect(data.data.length).toBeGreaterThanOrEqual(3);
       expect(data.pagination).toBeDefined();
@@ -373,7 +386,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.success).toBe(true);
+      expect(Array.isArray(data.data)).toBe(true);
       expect(data.data.length).toBeLessThanOrEqual(2);
     });
 
@@ -390,7 +403,7 @@ describeIntegration('Comments API Integration Tests', () => {
 
       const firstData = await firstResponse.json();
 
-      if (firstData.pagination.next_cursor) {
+      if (firstData.pagination?.next_cursor) {
         // Get second page
         const secondResponse = await fetch(
           `http://localhost:3000/api/v1/comments?entity_type=evidence&entity_id=${testEntityId}&limit=2&cursor=${firstData.pagination.next_cursor}`,
@@ -404,7 +417,7 @@ describeIntegration('Comments API Integration Tests', () => {
         expect(secondResponse.status).toBe(200);
 
         const secondData = await secondResponse.json();
-        expect(secondData.success).toBe(true);
+        expect(Array.isArray(secondData.data)).toBe(true);
 
         // Ensure no overlap between pages
         const firstIds = firstData.data.map((c: any) => c.id);
@@ -427,7 +440,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -441,7 +454,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -458,7 +471,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(response.status).toBe(422);
 
       const data = await response.json();
-      expect(data.success).toBe(false);
+      expect(data.error).toBeDefined();
     });
 
     it('should require authentication', async () => {
@@ -507,7 +520,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(updateResponse.status).toBe(200);
 
       const updateData = await updateResponse.json();
-      expect(updateData.success).toBe(true);
+      expect(updateData.data).toBeDefined();
       expect(updateData.data.content).toBe('Updated content');
       expect(updateData.data.id).toBe(createData.data.id);
     });
@@ -548,7 +561,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(updateResponse.status).toBe(422);
 
       const updateData = await updateResponse.json();
-      expect(updateData.success).toBe(false);
+      expect(updateData.error).toBeDefined();
     });
 
     it('should handle non-existent comment', async () => {
@@ -613,7 +626,7 @@ describeIntegration('Comments API Integration Tests', () => {
       expect(deleteResponse.status).toBe(200);
 
       const deleteData = await deleteResponse.json();
-      expect(deleteData.success).toBe(true);
+      expect(deleteData.data).toBeDefined();
 
       // Verify comment is deleted
       const { data: deletedComment } = await getSupabaseAdmin()
@@ -685,7 +698,7 @@ describeIntegration('Comments API Integration Tests', () => {
       const reply1Data = await reply1.json();
       testComments.push(reply1Data.data.id);
 
-      expect(reply1Data.success).toBe(true);
+      expect(reply1Data.data).toBeDefined();
       expect(reply1Data.data.parent_id).toBe(parentData.data.id);
 
       // Create second-level reply
@@ -706,7 +719,7 @@ describeIntegration('Comments API Integration Tests', () => {
       const reply2Data = await reply2.json();
       testComments.push(reply2Data.data.id);
 
-      expect(reply2Data.success).toBe(true);
+      expect(reply2Data.data).toBeDefined();
       expect(reply2Data.data.parent_id).toBe(reply1Data.data.id);
     });
   });

@@ -109,7 +109,7 @@ export async function processReportGenerationJob(job: Job<ReportGenerationJobDat
         .single();
 
       if (user) {
-        await supabaseAdmin.from('notifications').insert({
+        const { error: notifyError } = await supabaseAdmin.from('notifications').insert({
           user_id: report.generated_by,
           company_id: company_id,
           site_id: site_id || null,
@@ -124,6 +124,10 @@ export async function processReportGenerationJob(job: Job<ReportGenerationJobDat
           status: 'PENDING',
           scheduled_for: new Date().toISOString(),
         });
+
+        if (notifyError) {
+          console.error(`Failed to create report ready notification for ${report_id}:`, notifyError);
+        }
       }
     }
 

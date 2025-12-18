@@ -144,7 +144,7 @@ export async function processPackGenerationJob(job: Job<PackGenerationJobData>):
       .eq('id', pack_id);
 
     // Create notification
-    await supabaseAdmin.from('notifications').insert({
+    const { error: notifyError } = await supabaseAdmin.from('notifications').insert({
       user_id: pack.generated_by,
       company_id: company_id,
       site_id: site_id || null,
@@ -159,6 +159,10 @@ export async function processPackGenerationJob(job: Job<PackGenerationJobData>):
       status: 'PENDING',
       scheduled_for: new Date().toISOString(),
     });
+
+    if (notifyError) {
+      console.error(`Failed to create pack ready notification for ${pack_id}:`, notifyError);
+    }
 
     console.log(`Pack generation completed: ${pack_id} - ${pack_type}`);
   } catch (error: any) {
