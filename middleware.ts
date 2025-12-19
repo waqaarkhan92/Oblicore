@@ -85,7 +85,10 @@ export function middleware(request: NextRequest) {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://ecocomply.io',
+      'https://www.ecocomply.io',
       process.env.NEXT_PUBLIC_APP_URL,
+      process.env.BASE_URL,
     ].filter(Boolean);
 
     if (origin && allowedOrigins.includes(origin)) {
