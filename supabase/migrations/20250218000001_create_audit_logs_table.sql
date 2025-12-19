@@ -15,31 +15,56 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Add action column if table exists but column doesn't
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50);
+
 -- Create indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+
+-- Only create action index if the column exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'action') THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)';
+  END IF;
+END $$;
 
 -- Add comment to table
 COMMENT ON TABLE audit_logs IS 'Audit trail for tracking all changes to entities across the platform';
-COMMENT ON COLUMN audit_logs.entity_type IS 'Type of entity being audited (obligation, evidence, document, pack, corrective_action)';
-COMMENT ON COLUMN audit_logs.entity_id IS 'ID of the entity being audited';
-COMMENT ON COLUMN audit_logs.action IS 'Action performed (create, update, delete, status_change)';
-COMMENT ON COLUMN audit_logs.user_id IS 'User who performed the action';
-COMMENT ON COLUMN audit_logs.changes IS 'JSON object containing field changes: { field: { old: value, new: value } }';
-COMMENT ON COLUMN audit_logs.metadata IS 'Additional context about the change';
+
+-- Add comments conditionally
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'entity_type') THEN
+    COMMENT ON COLUMN audit_logs.entity_type IS 'Type of entity being audited (obligation, evidence, document, pack, corrective_action)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'entity_id') THEN
+    COMMENT ON COLUMN audit_logs.entity_id IS 'ID of the entity being audited';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'action') THEN
+    COMMENT ON COLUMN audit_logs.action IS 'Action performed (create, update, delete, status_change)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'user_id') THEN
+    COMMENT ON COLUMN audit_logs.user_id IS 'User who performed the action';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'changes') THEN
+    COMMENT ON COLUMN audit_logs.changes IS 'JSON object containing field changes: { field: { old: value, new: value } }';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'metadata') THEN
+    COMMENT ON COLUMN audit_logs.metadata IS 'Additional context about the change';
+  END IF;
+END $$;
 
 -- Create RLS policies for audit_logs
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can view audit logs for entities in their company
+DROP POLICY IF EXISTS audit_logs_select_policy ON audit_logs;
 CREATE POLICY audit_logs_select_policy ON audit_logs
   FOR SELECT
   USING (
-    -- Allow users to view audit logs where they have access to the entity
-    -- This is a simplified policy - you may want to add more complex logic
-    -- based on company_id or site_id from the related entity
     EXISTS (
       SELECT 1 FROM users
       WHERE users.id = auth.uid()
@@ -47,7 +72,7 @@ CREATE POLICY audit_logs_select_policy ON audit_logs
   );
 
 -- Policy: Only system (service role) can insert audit logs
--- This prevents users from tampering with audit records
+DROP POLICY IF EXISTS audit_logs_insert_policy ON audit_logs;
 CREATE POLICY audit_logs_insert_policy ON audit_logs
   FOR INSERT
   WITH CHECK (
@@ -55,8 +80,3 @@ CREATE POLICY audit_logs_insert_policy ON audit_logs
   );
 
 -- No update or delete policies - audit logs are immutable
--- Users cannot modify or delete audit logs once created
-
--- Grant permissions
-GRANT SELECT ON audit_logs TO authenticated;
-GRANT INSERT ON audit_logs TO service_role;

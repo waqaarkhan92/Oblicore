@@ -30,80 +30,35 @@ CREATE INDEX IF NOT EXISTS idx_consent_states_effective_date ON consent_states(e
 CREATE INDEX IF NOT EXISTS idx_consent_states_previous_state_id ON consent_states(previous_state_id);
 
 -- ============================================================================
--- RLS POLICIES - CONDITIONAL (Only if view exists)
+-- RLS POLICIES - Using has_site_access helper function
 -- ============================================================================
 
+-- Enable RLS
 ALTER TABLE consent_states ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS consent_states_select_site_module ON consent_states;
-      CREATE POLICY consent_states_select_site_module ON consent_states
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = consent_states.site_id
-          AND ma.is_active = true
-        )
-      );
+-- consent_states RLS policies
+DROP POLICY IF EXISTS consent_states_select_site_module ON consent_states;
+CREATE POLICY consent_states_select_site_module ON consent_states
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS consent_states_insert_staff_module ON consent_states;
-      CREATE POLICY consent_states_insert_staff_module ON consent_states
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = consent_states.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS consent_states_insert_staff_module ON consent_states;
+CREATE POLICY consent_states_insert_staff_module ON consent_states
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS consent_states_update_staff_module ON consent_states;
-      CREATE POLICY consent_states_update_staff_module ON consent_states
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = consent_states.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS consent_states_update_staff_module ON consent_states;
+CREATE POLICY consent_states_update_staff_module ON consent_states
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS consent_states_delete_owner_admin_module ON consent_states;
-      CREATE POLICY consent_states_delete_owner_admin_module ON consent_states
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = consent_states.site_id
-          AND usa.role IN ('OWNER', 'ADMIN')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS consent_states_delete_owner_admin_module ON consent_states;
+CREATE POLICY consent_states_delete_owner_admin_module ON consent_states
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for consent_states
+DROP TRIGGER IF EXISTS trigger_update_consent_states_updated_at ON consent_states;
 CREATE OR REPLACE FUNCTION update_consent_states_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -116,4 +71,3 @@ CREATE TRIGGER trigger_update_consent_states_updated_at
     BEFORE UPDATE ON consent_states
     FOR EACH ROW
     EXECUTE FUNCTION update_consent_states_updated_at();
-

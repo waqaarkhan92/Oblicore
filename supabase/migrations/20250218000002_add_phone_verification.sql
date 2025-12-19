@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_phone_verifications_expires_at ON phone_verificat
 CREATE TRIGGER update_phone_verifications_updated_at
   BEFORE UPDATE ON phone_verifications
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at();
+  EXECUTE FUNCTION update_updated_at_column();
 
 -- Create function to clean up expired verifications (older than 24 hours)
 CREATE OR REPLACE FUNCTION cleanup_expired_verifications()

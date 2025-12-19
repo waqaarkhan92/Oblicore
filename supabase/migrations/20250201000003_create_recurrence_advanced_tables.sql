@@ -26,61 +26,6 @@ CREATE INDEX IF NOT EXISTS idx_recurrence_events_event_type ON recurrence_events
 CREATE INDEX IF NOT EXISTS idx_recurrence_events_event_date ON recurrence_events(event_date);
 CREATE INDEX IF NOT EXISTS idx_recurrence_events_is_active ON recurrence_events(is_active);
 
--- RLS Policies for recurrence_events (conditional on view existence)
-ALTER TABLE recurrence_events ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS recurrence_events_select_site_access ON recurrence_events;
-      CREATE POLICY recurrence_events_select_site_access ON recurrence_events
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_events.site_id
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_events_insert_staff_access ON recurrence_events;
-      CREATE POLICY recurrence_events_insert_staff_access ON recurrence_events
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_events.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_events_update_staff_access ON recurrence_events;
-      CREATE POLICY recurrence_events_update_staff_access ON recurrence_events
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_events.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_events_delete_owner_admin_access ON recurrence_events;
-      CREATE POLICY recurrence_events_delete_owner_admin_access ON recurrence_events
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_events.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
-
 -- ============================================================================
 -- 2. RECURRENCE TRIGGER RULES
 -- ============================================================================
@@ -114,61 +59,6 @@ CREATE INDEX IF NOT EXISTS idx_recurrence_trigger_rules_event_id ON recurrence_t
 CREATE INDEX IF NOT EXISTS idx_recurrence_trigger_rules_is_active ON recurrence_trigger_rules(is_active);
 CREATE INDEX IF NOT EXISTS idx_recurrence_trigger_rules_next_execution_date ON recurrence_trigger_rules(next_execution_date) WHERE is_active = true;
 
--- RLS Policies for recurrence_trigger_rules (conditional on view existence)
-ALTER TABLE recurrence_trigger_rules ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules;
-      CREATE POLICY recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_trigger_rules.site_id
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules;
-      CREATE POLICY recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_trigger_rules.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules;
-      CREATE POLICY recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_trigger_rules.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-
-    DROP POLICY IF EXISTS recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules;
-      CREATE POLICY recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_trigger_rules.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
-
 -- ============================================================================
 -- 3. RECURRENCE CONDITIONS
 -- ============================================================================
@@ -196,66 +86,72 @@ CREATE INDEX IF NOT EXISTS idx_recurrence_conditions_site_id ON recurrence_condi
 CREATE INDEX IF NOT EXISTS idx_recurrence_conditions_condition_type ON recurrence_conditions(condition_type);
 CREATE INDEX IF NOT EXISTS idx_recurrence_conditions_is_active ON recurrence_conditions(is_active);
 
--- RLS Policies for recurrence_conditions (conditional on view existence)
+-- ============================================================================
+-- RLS POLICIES - Using has_site_access helper function
+-- ============================================================================
+
+-- Enable RLS
+ALTER TABLE recurrence_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recurrence_trigger_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recurrence_conditions ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS recurrence_conditions_select_site_access ON recurrence_conditions;
-      CREATE POLICY recurrence_conditions_select_site_access ON recurrence_conditions
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_conditions.site_id
-        )
-      );
+-- recurrence_events RLS policies
+DROP POLICY IF EXISTS recurrence_events_select_site_access ON recurrence_events;
+CREATE POLICY recurrence_events_select_site_access ON recurrence_events
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS recurrence_conditions_insert_staff_access ON recurrence_conditions;
-      CREATE POLICY recurrence_conditions_insert_staff_access ON recurrence_conditions
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_conditions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS recurrence_events_insert_staff_access ON recurrence_events;
+CREATE POLICY recurrence_events_insert_staff_access ON recurrence_events
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS recurrence_conditions_update_staff_access ON recurrence_conditions;
-      CREATE POLICY recurrence_conditions_update_staff_access ON recurrence_conditions
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_conditions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS recurrence_events_update_staff_access ON recurrence_events;
+CREATE POLICY recurrence_events_update_staff_access ON recurrence_events
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS recurrence_conditions_delete_owner_admin_access ON recurrence_conditions;
-      CREATE POLICY recurrence_conditions_delete_owner_admin_access ON recurrence_conditions
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = recurrence_conditions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS recurrence_events_delete_owner_admin_access ON recurrence_events;
+CREATE POLICY recurrence_events_delete_owner_admin_access ON recurrence_events
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
+
+-- recurrence_trigger_rules RLS policies
+DROP POLICY IF EXISTS recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules;
+CREATE POLICY recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules;
+CREATE POLICY recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules;
+CREATE POLICY recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules;
+CREATE POLICY recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
+
+-- recurrence_conditions RLS policies
+DROP POLICY IF EXISTS recurrence_conditions_select_site_access ON recurrence_conditions;
+CREATE POLICY recurrence_conditions_select_site_access ON recurrence_conditions
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_conditions_insert_staff_access ON recurrence_conditions;
+CREATE POLICY recurrence_conditions_insert_staff_access ON recurrence_conditions
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_conditions_update_staff_access ON recurrence_conditions;
+CREATE POLICY recurrence_conditions_update_staff_access ON recurrence_conditions
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurrence_conditions_delete_owner_admin_access ON recurrence_conditions;
+CREATE POLICY recurrence_conditions_delete_owner_admin_access ON recurrence_conditions
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
--- 4. TRIGGERS
+-- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for recurrence_events
+DROP TRIGGER IF EXISTS trigger_update_recurrence_events_updated_at ON recurrence_events;
 CREATE OR REPLACE FUNCTION update_recurrence_events_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -270,6 +166,7 @@ CREATE TRIGGER trigger_update_recurrence_events_updated_at
     EXECUTE FUNCTION update_recurrence_events_updated_at();
 
 -- Update updated_at for recurrence_trigger_rules
+DROP TRIGGER IF EXISTS trigger_update_recurrence_trigger_rules_updated_at ON recurrence_trigger_rules;
 CREATE OR REPLACE FUNCTION update_recurrence_trigger_rules_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -284,6 +181,7 @@ CREATE TRIGGER trigger_update_recurrence_trigger_rules_updated_at
     EXECUTE FUNCTION update_recurrence_trigger_rules_updated_at();
 
 -- Update updated_at for recurrence_conditions
+DROP TRIGGER IF EXISTS trigger_update_recurrence_conditions_updated_at ON recurrence_conditions;
 CREATE OR REPLACE FUNCTION update_recurrence_conditions_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -296,26 +194,3 @@ CREATE TRIGGER trigger_update_recurrence_conditions_updated_at
     BEFORE UPDATE ON recurrence_conditions
     FOR EACH ROW
     EXECUTE FUNCTION update_recurrence_conditions_updated_at();
-
-
-
--- Deferred Foreign Key Constraints
--- Deferred FK: event_id -> recurrence_events
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'recurrence_events') THEN
-    ALTER TABLE recurrence_events 
-    ADD CONSTRAINT fk_recurrence_events_event_id
-    FOREIGN KEY (event_id) REFERENCES recurrence_events(id) ON DELETE SET NULL;
-  END IF;
-END $$;
-
--- Deferred FK: recurrence_trigger_rule_id -> recurrence_trigger_rules
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'recurrence_trigger_rules') THEN
-    ALTER TABLE recurrence_events 
-    ADD CONSTRAINT fk_recurrence_events_recurrence_trigger_rule_id
-    FOREIGN KEY (recurrence_trigger_rule_id) REFERENCES recurrence_trigger_rules(id) ON DELETE SET NULL;
-  END IF;
-END $$;

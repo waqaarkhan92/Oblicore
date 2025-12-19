@@ -3,8 +3,7 @@
 -- Author: Integration Plan v1.0
 -- Date: 2025-02-06
 -- Approach: Additive only - no breaking changes
-
-BEGIN;
+-- Note: Removed explicit BEGIN/COMMIT as migration runner handles transactions
 
 -- ============================================================================
 -- SECTION 1: New Columns on Existing Tables
@@ -275,5 +274,3 @@ CREATE POLICY subjective_interpretations_update_policy ON subjective_interpretat
       SELECT company_id FROM users WHERE id = auth.uid()
     )
   );
-
-COMMIT;

@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS statement_reconciliations (
     actual_volume_m3 DECIMAL(12, 4) NOT NULL,
     variance_m3 DECIMAL(12, 4) NOT NULL,
     variance_percent DECIMAL(6, 2) NOT NULL,
-    reconciliation_status TEXT NOT NULL DEFAULT 'PENDING' 
+    reconciliation_status TEXT NOT NULL DEFAULT 'PENDING'
         CHECK (reconciliation_status IN ('PENDING', 'IN_PROGRESS', 'RECONCILED', 'DISCREPANCY', 'RESOLVED')),
     reconciliation_notes TEXT,
     reconciled_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS reconciliation_discrepancies (
         CHECK (discrepancy_type IN ('VOLUME_MISMATCH', 'MISSING_DATA', 'DUPLICATE_ENTRY', 'DATE_MISMATCH', 'OTHER')),
     discrepancy_description TEXT NOT NULL,
     discrepancy_value DECIMAL(12, 4),
-    severity TEXT NOT NULL DEFAULT 'MEDIUM' 
+    severity TEXT NOT NULL DEFAULT 'MEDIUM'
         CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
     is_resolved BOOLEAN NOT NULL DEFAULT false,
     resolution_notes TEXT,
@@ -89,198 +89,71 @@ CREATE INDEX IF NOT EXISTS idx_reconciliation_discrepancies_discrepancy_type ON 
 CREATE INDEX IF NOT EXISTS idx_reconciliation_discrepancies_is_resolved ON reconciliation_discrepancies(is_resolved) WHERE is_resolved = false;
 
 -- ============================================================================
--- RLS POLICIES - CONDITIONAL (Only if view exists)
+-- RLS POLICIES - Using has_site_access helper function
 -- ============================================================================
 
+-- Enable RLS
 ALTER TABLE monthly_statements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE statement_reconciliations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reconciliation_discrepancies ENABLE ROW LEVEL SECURITY;
 
--- monthly_statements policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS monthly_statements_select_site_module ON monthly_statements;
-      CREATE POLICY monthly_statements_select_site_module ON monthly_statements
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = monthly_statements.site_id
-          AND ma.is_active = true
-        )
-      );
+-- monthly_statements RLS policies
+DROP POLICY IF EXISTS monthly_statements_select_site_module ON monthly_statements;
+CREATE POLICY monthly_statements_select_site_module ON monthly_statements
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS monthly_statements_insert_staff_module ON monthly_statements;
-      CREATE POLICY monthly_statements_insert_staff_module ON monthly_statements
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = monthly_statements.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS monthly_statements_insert_staff_module ON monthly_statements;
+CREATE POLICY monthly_statements_insert_staff_module ON monthly_statements
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS monthly_statements_update_staff_module ON monthly_statements;
-      CREATE POLICY monthly_statements_update_staff_module ON monthly_statements
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = monthly_statements.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS monthly_statements_update_staff_module ON monthly_statements;
+CREATE POLICY monthly_statements_update_staff_module ON monthly_statements
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS monthly_statements_delete_owner_admin_module ON monthly_statements;
-      CREATE POLICY monthly_statements_delete_owner_admin_module ON monthly_statements
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = monthly_statements.site_id
-          AND usa.role IN ('OWNER', 'ADMIN')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS monthly_statements_delete_owner_admin_module ON monthly_statements;
+CREATE POLICY monthly_statements_delete_owner_admin_module ON monthly_statements
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
--- statement_reconciliations policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS statement_reconciliations_select_site_module ON statement_reconciliations;
-      CREATE POLICY statement_reconciliations_select_site_module ON statement_reconciliations
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = statement_reconciliations.site_id
-          AND ma.is_active = true
-        )
-      );
+-- statement_reconciliations RLS policies
+DROP POLICY IF EXISTS statement_reconciliations_select_site_module ON statement_reconciliations;
+CREATE POLICY statement_reconciliations_select_site_module ON statement_reconciliations
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS statement_reconciliations_insert_staff_module ON statement_reconciliations;
-      CREATE POLICY statement_reconciliations_insert_staff_module ON statement_reconciliations
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = statement_reconciliations.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS statement_reconciliations_insert_staff_module ON statement_reconciliations;
+CREATE POLICY statement_reconciliations_insert_staff_module ON statement_reconciliations
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS statement_reconciliations_update_staff_module ON statement_reconciliations;
-      CREATE POLICY statement_reconciliations_update_staff_module ON statement_reconciliations
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = statement_reconciliations.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS statement_reconciliations_update_staff_module ON statement_reconciliations;
+CREATE POLICY statement_reconciliations_update_staff_module ON statement_reconciliations
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS statement_reconciliations_delete_owner_admin_module ON statement_reconciliations;
-      CREATE POLICY statement_reconciliations_delete_owner_admin_module ON statement_reconciliations
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = statement_reconciliations.site_id
-          AND usa.role IN ('OWNER', 'ADMIN')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS statement_reconciliations_delete_owner_admin_module ON statement_reconciliations;
+CREATE POLICY statement_reconciliations_delete_owner_admin_module ON statement_reconciliations
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
--- reconciliation_discrepancies policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies;
-      CREATE POLICY reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = reconciliation_discrepancies.site_id
-          AND ma.is_active = true
-        )
-      );
+-- reconciliation_discrepancies RLS policies
+DROP POLICY IF EXISTS reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies;
+CREATE POLICY reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies;
-      CREATE POLICY reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = reconciliation_discrepancies.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies;
+CREATE POLICY reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies;
-      CREATE POLICY reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_2'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = reconciliation_discrepancies.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies;
+CREATE POLICY reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS reconciliation_discrepancies_delete_site_module ON reconciliation_discrepancies;
+CREATE POLICY reconciliation_discrepancies_delete_site_module ON reconciliation_discrepancies
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for monthly_statements
+DROP TRIGGER IF EXISTS trigger_update_monthly_statements_updated_at ON monthly_statements;
 CREATE OR REPLACE FUNCTION update_monthly_statements_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -295,6 +168,7 @@ CREATE TRIGGER trigger_update_monthly_statements_updated_at
     EXECUTE FUNCTION update_monthly_statements_updated_at();
 
 -- Update updated_at for statement_reconciliations
+DROP TRIGGER IF EXISTS trigger_update_statement_reconciliations_updated_at ON statement_reconciliations;
 CREATE OR REPLACE FUNCTION update_statement_reconciliations_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -309,6 +183,7 @@ CREATE TRIGGER trigger_update_statement_reconciliations_updated_at
     EXECUTE FUNCTION update_statement_reconciliations_updated_at();
 
 -- Update updated_at for reconciliation_discrepancies
+DROP TRIGGER IF EXISTS trigger_update_reconciliation_discrepancies_updated_at ON reconciliation_discrepancies;
 CREATE OR REPLACE FUNCTION update_reconciliation_discrepancies_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -321,26 +196,3 @@ CREATE TRIGGER trigger_update_reconciliation_discrepancies_updated_at
     BEFORE UPDATE ON reconciliation_discrepancies
     FOR EACH ROW
     EXECUTE FUNCTION update_reconciliation_discrepancies_updated_at();
-
-
-
--- Deferred Foreign Key Constraints
--- Deferred FK: monthly_statement_id -> monthly_statements
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'monthly_statements') THEN
-    ALTER TABLE monthly_statements 
-    ADD CONSTRAINT fk_monthly_statements_monthly_statement_id
-    FOREIGN KEY (monthly_statement_id) REFERENCES monthly_statements(id) ON DELETE CASCADE;
-  END IF;
-END $$;
-
--- Deferred FK: statement_reconciliation_id -> statement_reconciliations
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'statement_reconciliations') THEN
-    ALTER TABLE monthly_statements 
-    ADD CONSTRAINT fk_monthly_statements_statement_reconciliation_id
-    FOREIGN KEY (statement_reconciliation_id) REFERENCES statement_reconciliations(id) ON DELETE CASCADE;
-  END IF;
-END $$;

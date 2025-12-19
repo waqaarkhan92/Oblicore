@@ -67,7 +67,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = reconciliation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -87,7 +87,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = reconciliation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -107,7 +107,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = reconciliation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -124,7 +124,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = reconciliation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -144,7 +144,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = reconciliation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -160,7 +160,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = breach_likelihood_scores.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -172,7 +172,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = breach_likelihood_scores.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -184,7 +184,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = breach_likelihood_scores.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -193,7 +193,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = breach_likelihood_scores.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -213,7 +213,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = breach_likelihood_scores.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -229,7 +229,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = predictive_breach_alerts.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -241,7 +241,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = predictive_breach_alerts.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -261,7 +261,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = predictive_breach_alerts.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -278,7 +278,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = predictive_breach_alerts.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -298,7 +298,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = predictive_breach_alerts.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -314,7 +314,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = exposure_calculations.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -326,7 +326,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = exposure_calculations.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -338,7 +338,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = exposure_calculations.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -347,7 +347,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = exposure_calculations.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -367,7 +367,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = exposure_calculations.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_2' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_2' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -389,7 +389,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = validation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_4' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_4' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -413,7 +413,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = validation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_4' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_4' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -437,7 +437,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = validation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_4' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_4' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -458,7 +458,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = validation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_4' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_4' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -482,7 +482,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = validation_rules.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_4' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_4' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -594,38 +594,10 @@ USING (
 );
 
 -- ============================================================================
--- COMPLIANCE CLOCK DASHBOARD MATERIALIZED VIEW POLICIES
+-- COMPLIANCE CLOCK DASHBOARD - SKIPPED (Materialized View)
 -- ============================================================================
-
-CREATE POLICY compliance_clock_dashboard_select_site_access ON compliance_clock_dashboard
-FOR SELECT
-USING (
-  -- Site-specific dashboard: site access required
-  (
-    site_id IS NOT NULL
-    AND site_id IN (
-      SELECT site_id FROM user_site_assignments
-      WHERE user_id = auth.uid()
-    )
-  )
-  OR
-  -- Company-level dashboard (no site_id): company access required
-  (
-    site_id IS NULL
-    AND company_id = (SELECT company_id FROM users WHERE id = auth.uid())
-  )
-  OR
-  -- Consultants: client company access
-  (
-    company_id IN (
-      SELECT client_company_id FROM consultant_client_assignments
-      WHERE consultant_id = auth.uid()
-      AND status = 'ACTIVE'
-    )
-  )
-);
-
--- No INSERT, UPDATE, or DELETE policies - materialized view is read-only
+-- Note: RLS policies cannot be created on materialized views
+-- Access control for the dashboard is handled at the query level
 
 -- ============================================================================
 -- MODULE 3 FUEL USAGE LOGS AND SULPHUR CONTENT REPORTS POLICIES
@@ -642,7 +614,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = fuel_usage_logs.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -662,7 +634,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = fuel_usage_logs.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -682,7 +654,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = fuel_usage_logs.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -699,7 +671,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = fuel_usage_logs.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -719,7 +691,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = fuel_usage_logs.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -735,7 +707,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = sulphur_content_reports.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -755,7 +727,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = sulphur_content_reports.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -775,7 +747,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = sulphur_content_reports.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 )
@@ -792,7 +764,7 @@ WITH CHECK (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = sulphur_content_reports.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );
@@ -812,7 +784,7 @@ USING (
   AND EXISTS (
     SELECT 1 FROM module_activations
     WHERE company_id = sulphur_content_reports.company_id
-    AND module_id = (SELECT id FROM modules WHERE name = 'MODULE_3' LIMIT 1)
+    AND module_id = (SELECT id FROM modules WHERE module_code = 'MODULE_3' LIMIT 1)
     AND status = 'ACTIVE'
   )
 );

@@ -89,141 +89,71 @@ CREATE INDEX IF NOT EXISTS idx_permit_surrenders_surrender_date ON permit_surren
 CREATE INDEX IF NOT EXISTS idx_permit_surrenders_site_decommission_complete ON permit_surrenders(site_decommission_complete);
 
 -- ============================================================================
--- RLS POLICIES - CONDITIONAL (Only if view exists)
+-- RLS POLICIES - Using has_site_access helper function
 -- ============================================================================
 
+-- Enable RLS
 ALTER TABLE permit_workflows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permit_variations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permit_surrenders ENABLE ROW LEVEL SECURITY;
 
--- permit_workflows policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS permit_workflows_select_site_access ON permit_workflows;
-      CREATE POLICY permit_workflows_select_site_access ON permit_workflows
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_workflows.site_id
-        )
-      );
+-- permit_workflows RLS policies
+DROP POLICY IF EXISTS permit_workflows_select_site_access ON permit_workflows;
+CREATE POLICY permit_workflows_select_site_access ON permit_workflows
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_workflows_insert_staff_access ON permit_workflows;
-      CREATE POLICY permit_workflows_insert_staff_access ON permit_workflows
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_workflows.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS permit_workflows_insert_staff_access ON permit_workflows;
+CREATE POLICY permit_workflows_insert_staff_access ON permit_workflows
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_workflows_update_staff_access ON permit_workflows;
-      CREATE POLICY permit_workflows_update_staff_access ON permit_workflows
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_workflows.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS permit_workflows_update_staff_access ON permit_workflows;
+CREATE POLICY permit_workflows_update_staff_access ON permit_workflows
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
--- permit_variations policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS permit_variations_select_site_access ON permit_variations;
-      CREATE POLICY permit_variations_select_site_access ON permit_variations
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_variations.site_id
-        )
-      );
+DROP POLICY IF EXISTS permit_workflows_delete_staff_access ON permit_workflows;
+CREATE POLICY permit_workflows_delete_staff_access ON permit_workflows
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_variations_insert_staff_access ON permit_variations;
-      CREATE POLICY permit_variations_insert_staff_access ON permit_variations
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_variations.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+-- permit_variations RLS policies
+DROP POLICY IF EXISTS permit_variations_select_site_access ON permit_variations;
+CREATE POLICY permit_variations_select_site_access ON permit_variations
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_variations_update_staff_access ON permit_variations;
-      CREATE POLICY permit_variations_update_staff_access ON permit_variations
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_variations.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS permit_variations_insert_staff_access ON permit_variations;
+CREATE POLICY permit_variations_insert_staff_access ON permit_variations
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
--- permit_surrenders policies (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS permit_surrenders_select_site_access ON permit_surrenders;
-      CREATE POLICY permit_surrenders_select_site_access ON permit_surrenders
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_surrenders.site_id
-        )
-      );
+DROP POLICY IF EXISTS permit_variations_update_staff_access ON permit_variations;
+CREATE POLICY permit_variations_update_staff_access ON permit_variations
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_surrenders_insert_staff_access ON permit_surrenders;
-      CREATE POLICY permit_surrenders_insert_staff_access ON permit_surrenders
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_surrenders.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS permit_variations_delete_staff_access ON permit_variations;
+CREATE POLICY permit_variations_delete_staff_access ON permit_variations
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS permit_surrenders_update_staff_access ON permit_surrenders;
-      CREATE POLICY permit_surrenders_update_staff_access ON permit_surrenders
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = permit_surrenders.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
-  END IF;
-END $$;
+-- permit_surrenders RLS policies
+DROP POLICY IF EXISTS permit_surrenders_select_site_access ON permit_surrenders;
+CREATE POLICY permit_surrenders_select_site_access ON permit_surrenders
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS permit_surrenders_insert_staff_access ON permit_surrenders;
+CREATE POLICY permit_surrenders_insert_staff_access ON permit_surrenders
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS permit_surrenders_update_staff_access ON permit_surrenders;
+CREATE POLICY permit_surrenders_update_staff_access ON permit_surrenders
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS permit_surrenders_delete_staff_access ON permit_surrenders;
+CREATE POLICY permit_surrenders_delete_staff_access ON permit_surrenders
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for permit_workflows
+DROP TRIGGER IF EXISTS trigger_update_permit_workflows_updated_at ON permit_workflows;
 CREATE OR REPLACE FUNCTION update_permit_workflows_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -238,6 +168,7 @@ CREATE TRIGGER trigger_update_permit_workflows_updated_at
     EXECUTE FUNCTION update_permit_workflows_updated_at();
 
 -- Update updated_at for permit_variations
+DROP TRIGGER IF EXISTS trigger_update_permit_variations_updated_at ON permit_variations;
 CREATE OR REPLACE FUNCTION update_permit_variations_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -252,6 +183,7 @@ CREATE TRIGGER trigger_update_permit_variations_updated_at
     EXECUTE FUNCTION update_permit_variations_updated_at();
 
 -- Update updated_at for permit_surrenders
+DROP TRIGGER IF EXISTS trigger_update_permit_surrenders_updated_at ON permit_surrenders;
 CREATE OR REPLACE FUNCTION update_permit_surrenders_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -264,26 +196,3 @@ CREATE TRIGGER trigger_update_permit_surrenders_updated_at
     BEFORE UPDATE ON permit_surrenders
     FOR EACH ROW
     EXECUTE FUNCTION update_permit_surrenders_updated_at();
-
-
-
--- Deferred Foreign Key Constraints
--- Deferred FK: workflow_id -> permit_workflows
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'permit_workflows') THEN
-    ALTER TABLE permit_workflows 
-    ADD CONSTRAINT fk_permit_workflows_workflow_id
-    FOREIGN KEY (workflow_id) REFERENCES permit_workflows(id) ON DELETE CASCADE;
-  END IF;
-END $$;
-
--- Deferred FK: workflow_id -> permit_workflows
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'permit_workflows') THEN
-    ALTER TABLE permit_workflows 
-    ADD CONSTRAINT fk_permit_workflows_workflow_id
-    FOREIGN KEY (workflow_id) REFERENCES permit_workflows(id) ON DELETE CASCADE;
-  END IF;
-END $$;

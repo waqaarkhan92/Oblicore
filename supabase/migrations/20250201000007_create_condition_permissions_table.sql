@@ -29,72 +29,39 @@ CREATE INDEX IF NOT EXISTS idx_condition_permissions_condition_reference ON cond
 CREATE INDEX IF NOT EXISTS idx_condition_permissions_company_id ON condition_permissions(company_id);
 CREATE INDEX IF NOT EXISTS idx_condition_permissions_site_id ON condition_permissions(site_id);
 CREATE INDEX IF NOT EXISTS idx_condition_permissions_is_active ON condition_permissions(is_active) WHERE is_active = true;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_condition_permissions ON condition_permissions(user_id, document_id, condition_reference) 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_condition_permissions ON condition_permissions(user_id, document_id, condition_reference)
     WHERE is_active = true;
 
 -- ============================================================================
--- RLS POLICIES - CONDITIONAL (Only if view exists)
+-- RLS POLICIES - Using has_site_access helper function
 -- ============================================================================
 
+-- Enable RLS
 ALTER TABLE condition_permissions ENABLE ROW LEVEL SECURITY;
 
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS condition_permissions_select_site_access ON condition_permissions;
-      CREATE POLICY condition_permissions_select_site_access ON condition_permissions
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = condition_permissions.site_id
-        )
-      );
+-- condition_permissions RLS policies
+DROP POLICY IF EXISTS condition_permissions_select_site_access ON condition_permissions;
+CREATE POLICY condition_permissions_select_site_access ON condition_permissions
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS condition_permissions_insert_staff_access ON condition_permissions;
-      CREATE POLICY condition_permissions_insert_staff_access ON condition_permissions
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = condition_permissions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS condition_permissions_insert_staff_access ON condition_permissions;
+CREATE POLICY condition_permissions_insert_staff_access ON condition_permissions
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS condition_permissions_update_staff_access ON condition_permissions;
-      CREATE POLICY condition_permissions_update_staff_access ON condition_permissions
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = condition_permissions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS condition_permissions_update_staff_access ON condition_permissions;
+CREATE POLICY condition_permissions_update_staff_access ON condition_permissions
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS condition_permissions_delete_owner_admin_access ON condition_permissions;
-      CREATE POLICY condition_permissions_delete_owner_admin_access ON condition_permissions
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = condition_permissions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS condition_permissions_delete_owner_admin_access ON condition_permissions;
+CREATE POLICY condition_permissions_delete_owner_admin_access ON condition_permissions
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for condition_permissions
+DROP TRIGGER IF EXISTS trigger_update_condition_permissions_updated_at ON condition_permissions;
 CREATE OR REPLACE FUNCTION update_condition_permissions_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -107,4 +74,3 @@ CREATE TRIGGER trigger_update_condition_permissions_updated_at
     BEFORE UPDATE ON condition_permissions
     FOR EACH ROW
     EXECUTE FUNCTION update_condition_permissions_updated_at();
-

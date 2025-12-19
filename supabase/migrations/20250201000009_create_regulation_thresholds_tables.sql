@@ -87,183 +87,71 @@ CREATE INDEX IF NOT EXISTS idx_frequency_calculations_calculation_date ON freque
 CREATE INDEX IF NOT EXISTS idx_frequency_calculations_is_applied ON frequency_calculations(is_applied);
 
 -- ============================================================================
--- RLS POLICIES - CONDITIONAL (Only if views exist)
+-- RLS POLICIES - Using has_site_access and has_company_access helper functions
 -- ============================================================================
 
+-- Enable RLS
 ALTER TABLE regulation_thresholds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE threshold_compliance_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE frequency_calculations ENABLE ROW LEVEL SECURITY;
 
--- regulation_thresholds policies (conditional on user_company_access view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_company_access') THEN
-    DROP POLICY IF EXISTS regulation_thresholds_select_company_module ON regulation_thresholds;
-      CREATE POLICY regulation_thresholds_select_company_module ON regulation_thresholds
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access uca
-          JOIN module_activations ma ON ma.company_id = uca.company_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE uca.user_id = auth.uid()
-          AND uca.company_id = regulation_thresholds.company_id
-          AND ma.is_active = true
-        )
-      );
+-- regulation_thresholds RLS policies (company-level access)
+DROP POLICY IF EXISTS regulation_thresholds_select_company_module ON regulation_thresholds;
+CREATE POLICY regulation_thresholds_select_company_module ON regulation_thresholds
+    FOR SELECT USING (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS regulation_thresholds_insert_staff_module ON regulation_thresholds;
-      CREATE POLICY regulation_thresholds_insert_staff_module ON regulation_thresholds
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_company_access uca
-          JOIN module_activations ma ON ma.company_id = uca.company_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE uca.user_id = auth.uid()
-          AND uca.company_id = regulation_thresholds.company_id
-          AND uca.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS regulation_thresholds_insert_staff_module ON regulation_thresholds;
+CREATE POLICY regulation_thresholds_insert_staff_module ON regulation_thresholds
+    FOR INSERT WITH CHECK (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS regulation_thresholds_update_staff_module ON regulation_thresholds;
-      CREATE POLICY regulation_thresholds_update_staff_module ON regulation_thresholds
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access uca
-          JOIN module_activations ma ON ma.company_id = uca.company_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE uca.user_id = auth.uid()
-          AND uca.company_id = regulation_thresholds.company_id
-          AND uca.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS regulation_thresholds_update_staff_module ON regulation_thresholds;
+CREATE POLICY regulation_thresholds_update_staff_module ON regulation_thresholds
+    FOR UPDATE USING (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS regulation_thresholds_delete_owner_admin_module ON regulation_thresholds;
-      CREATE POLICY regulation_thresholds_delete_owner_admin_module ON regulation_thresholds
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access uca
-          JOIN module_activations ma ON ma.company_id = uca.company_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE uca.user_id = auth.uid()
-          AND uca.company_id = regulation_thresholds.company_id
-          AND uca.role IN ('OWNER', 'ADMIN')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS regulation_thresholds_delete_owner_admin_module ON regulation_thresholds;
+CREATE POLICY regulation_thresholds_delete_owner_admin_module ON regulation_thresholds
+    FOR DELETE USING (has_company_access(auth.uid(), company_id));
 
--- threshold_compliance_rules policies (conditional on user_site_access view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS threshold_compliance_rules_select_site_module ON threshold_compliance_rules;
-      CREATE POLICY threshold_compliance_rules_select_site_module ON threshold_compliance_rules
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = threshold_compliance_rules.site_id
-          AND ma.is_active = true
-        )
-      );
+-- threshold_compliance_rules RLS policies (site-level access)
+DROP POLICY IF EXISTS threshold_compliance_rules_select_site_module ON threshold_compliance_rules;
+CREATE POLICY threshold_compliance_rules_select_site_module ON threshold_compliance_rules
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules;
-      CREATE POLICY threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = threshold_compliance_rules.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules;
+CREATE POLICY threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS threshold_compliance_rules_update_staff_module ON threshold_compliance_rules;
-      CREATE POLICY threshold_compliance_rules_update_staff_module ON threshold_compliance_rules
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = threshold_compliance_rules.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS threshold_compliance_rules_update_staff_module ON threshold_compliance_rules;
+CREATE POLICY threshold_compliance_rules_update_staff_module ON threshold_compliance_rules
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
--- frequency_calculations policies (conditional on user_site_access view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS frequency_calculations_select_site_module ON frequency_calculations;
-      CREATE POLICY frequency_calculations_select_site_module ON frequency_calculations
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = frequency_calculations.site_id
-          AND ma.is_active = true
-        )
-      );
+DROP POLICY IF EXISTS threshold_compliance_rules_delete_site_module ON threshold_compliance_rules;
+CREATE POLICY threshold_compliance_rules_delete_site_module ON threshold_compliance_rules
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS frequency_calculations_insert_staff_module ON frequency_calculations;
-      CREATE POLICY frequency_calculations_insert_staff_module ON frequency_calculations
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = frequency_calculations.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
+-- frequency_calculations RLS policies (site-level access)
+DROP POLICY IF EXISTS frequency_calculations_select_site_module ON frequency_calculations;
+CREATE POLICY frequency_calculations_select_site_module ON frequency_calculations
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS frequency_calculations_update_staff_module ON frequency_calculations;
-      CREATE POLICY frequency_calculations_update_staff_module ON frequency_calculations
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access usa
-          JOIN module_activations ma ON ma.site_id = usa.site_id
-          JOIN modules m ON m.id = ma.module_id AND m.module_code = 'MODULE_3'
-          WHERE usa.user_id = auth.uid()
-          AND usa.site_id = frequency_calculations.site_id
-          AND usa.role IN ('OWNER', 'ADMIN', 'STAFF')
-          AND ma.is_active = true
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS frequency_calculations_insert_staff_module ON frequency_calculations;
+CREATE POLICY frequency_calculations_insert_staff_module ON frequency_calculations
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS frequency_calculations_update_staff_module ON frequency_calculations;
+CREATE POLICY frequency_calculations_update_staff_module ON frequency_calculations
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS frequency_calculations_delete_site_module ON frequency_calculations;
+CREATE POLICY frequency_calculations_delete_site_module ON frequency_calculations
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
 -- ============================================================================
 -- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for regulation_thresholds
+DROP TRIGGER IF EXISTS trigger_update_regulation_thresholds_updated_at ON regulation_thresholds;
 CREATE OR REPLACE FUNCTION update_regulation_thresholds_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -278,6 +166,7 @@ CREATE TRIGGER trigger_update_regulation_thresholds_updated_at
     EXECUTE FUNCTION update_regulation_thresholds_updated_at();
 
 -- Update updated_at for threshold_compliance_rules
+DROP TRIGGER IF EXISTS trigger_update_threshold_compliance_rules_updated_at ON threshold_compliance_rules;
 CREATE OR REPLACE FUNCTION update_threshold_compliance_rules_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -292,6 +181,7 @@ CREATE TRIGGER trigger_update_threshold_compliance_rules_updated_at
     EXECUTE FUNCTION update_threshold_compliance_rules_updated_at();
 
 -- Update updated_at for frequency_calculations
+DROP TRIGGER IF EXISTS trigger_update_frequency_calculations_updated_at ON frequency_calculations;
 CREATE OR REPLACE FUNCTION update_frequency_calculations_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -304,26 +194,3 @@ CREATE TRIGGER trigger_update_frequency_calculations_updated_at
     BEFORE UPDATE ON frequency_calculations
     FOR EACH ROW
     EXECUTE FUNCTION update_frequency_calculations_updated_at();
-
-
-
--- Deferred Foreign Key Constraints
--- Deferred FK: regulation_threshold_id -> regulation_thresholds
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'regulation_thresholds') THEN
-    ALTER TABLE regulation_thresholds 
-    ADD CONSTRAINT fk_regulation_thresholds_regulation_threshold_id
-    FOREIGN KEY (regulation_threshold_id) REFERENCES regulation_thresholds(id) ON DELETE CASCADE;
-  END IF;
-END $$;
-
--- Deferred FK: regulation_threshold_id -> regulation_thresholds
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'regulation_thresholds') THEN
-    ALTER TABLE regulation_thresholds 
-    ADD CONSTRAINT fk_regulation_thresholds_regulation_threshold_id
-    FOREIGN KEY (regulation_threshold_id) REFERENCES regulation_thresholds(id) ON DELETE CASCADE;
-  END IF;
-END $$;

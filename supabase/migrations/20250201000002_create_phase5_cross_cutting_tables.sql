@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS recurring_tasks (
     task_title TEXT NOT NULL,
     task_description TEXT,
     due_date DATE NOT NULL,
-    status TEXT NOT NULL DEFAULT 'PENDING' 
+    status TEXT NOT NULL DEFAULT 'PENDING'
         CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE', 'CANCELLED')),
     assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
@@ -36,62 +36,6 @@ CREATE INDEX IF NOT EXISTS idx_recurring_tasks_site_id ON recurring_tasks(site_i
 CREATE INDEX IF NOT EXISTS idx_recurring_tasks_due_date ON recurring_tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_recurring_tasks_status ON recurring_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_recurring_tasks_assigned_to ON recurring_tasks(assigned_to);
-
--- RLS Policies for recurring_tasks (conditional on view existence)
-ALTER TABLE recurring_tasks ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    EXECUTE format('
-      DROP POLICY IF EXISTS recurring_tasks_select_site_access ON recurring_tasks;
-      CREATE POLICY recurring_tasks_select_site_access ON recurring_tasks
-        FOR SELECT
-        USING (
-          EXISTS (
-            SELECT 1 FROM user_site_access
-            WHERE user_site_access.user_id = auth.uid()
-            AND user_site_access.site_id = recurring_tasks.site_id
-          )
-        );
-    ');
-
-    EXECUTE format('
-      DROP POLICY IF EXISTS recurring_tasks_insert_system_access ON recurring_tasks;
-      CREATE POLICY recurring_tasks_insert_system_access ON recurring_tasks
-        FOR INSERT
-        WITH CHECK (false);
-    ');
-
-    EXECUTE format('
-      DROP POLICY IF EXISTS recurring_tasks_update_staff_access ON recurring_tasks;
-      CREATE POLICY recurring_tasks_update_staff_access ON recurring_tasks
-        FOR UPDATE
-        USING (
-          EXISTS (
-            SELECT 1 FROM user_site_access
-            WHERE user_site_access.user_id = auth.uid()
-            AND user_site_access.site_id = recurring_tasks.site_id
-            AND user_site_access.role IN (''OWNER'', ''ADMIN'', ''STAFF'')
-          )
-        );
-    ');
-
-    EXECUTE format('
-      DROP POLICY IF EXISTS recurring_tasks_delete_owner_admin_access ON recurring_tasks;
-      CREATE POLICY recurring_tasks_delete_owner_admin_access ON recurring_tasks
-        FOR DELETE
-        USING (
-          EXISTS (
-            SELECT 1 FROM user_site_access
-            WHERE user_site_access.user_id = auth.uid()
-            AND user_site_access.site_id = recurring_tasks.site_id
-            AND user_site_access.role IN (''OWNER'', ''ADMIN'')
-          )
-        );
-    ');
-  END IF;
-END $$;
 
 -- ============================================================================
 -- 2. EVIDENCE EXPIRY TRACKING
@@ -122,47 +66,6 @@ CREATE INDEX IF NOT EXISTS idx_evidence_expiry_tracking_expiry_date ON evidence_
 CREATE INDEX IF NOT EXISTS idx_evidence_expiry_tracking_is_expired ON evidence_expiry_tracking(is_expired) WHERE is_expired = false;
 CREATE INDEX IF NOT EXISTS idx_evidence_expiry_tracking_days_until_expiry ON evidence_expiry_tracking(days_until_expiry) WHERE is_expired = false;
 
--- RLS Policies for evidence_expiry_tracking (conditional on view existence)
-ALTER TABLE evidence_expiry_tracking ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking;
-      CREATE POLICY evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = evidence_expiry_tracking.site_id
-        )
-      );
-
-    DROP POLICY IF EXISTS evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking;
-      CREATE POLICY evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking
-      FOR INSERT
-      WITH CHECK (false); -- Only system can create via background jobs
-
-    DROP POLICY IF EXISTS evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking;
-      CREATE POLICY evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking
-      FOR UPDATE
-      USING (false); -- Only system can update via background jobs
-
-    DROP POLICY IF EXISTS evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking;
-      CREATE POLICY evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = evidence_expiry_tracking.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
-
 -- ============================================================================
 -- 3. PACK SHARING (Enhancement - ensure table exists)
 -- ============================================================================
@@ -173,7 +76,7 @@ CREATE TABLE IF NOT EXISTS pack_sharing (
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     shared_by UUID REFERENCES users(id) ON DELETE SET NULL,
     access_token TEXT UNIQUE,
-    distribution_method TEXT 
+    distribution_method TEXT
         CHECK (distribution_method IN ('EMAIL', 'SHARED_LINK')),
     distributed_to TEXT, -- Email address or recipient identifier
     shared_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -194,39 +97,72 @@ CREATE INDEX IF NOT EXISTS idx_pack_sharing_is_active ON pack_sharing(is_active)
 CREATE INDEX IF NOT EXISTS idx_pack_sharing_distribution_method ON pack_sharing(distribution_method) WHERE distribution_method IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pack_sharing_shared_at ON pack_sharing(shared_at);
 
--- RLS Policies for pack_sharing (conditional on view existence)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM pg_policies 
-      WHERE tablename = 'pack_sharing' 
-      AND policyname = 'pack_sharing_select_pack_access'
-    ) THEN
-      ALTER TABLE pack_sharing ENABLE ROW LEVEL SECURITY;
-      
-      CREATE POLICY pack_sharing_select_pack_access ON pack_sharing
-        FOR SELECT
-        USING (
-          EXISTS (
-            SELECT 1 FROM audit_packs
-            WHERE audit_packs.id = pack_sharing.pack_id
-            AND EXISTS (
-              SELECT 1 FROM user_site_access
-              WHERE user_site_access.user_id = auth.uid()
-              AND user_site_access.site_id = audit_packs.site_id
-            )
-          )
-        );
-    END IF;
-  END IF;
-END $$;
+-- ============================================================================
+-- RLS POLICIES - Using has_site_access helper function
+-- ============================================================================
+
+-- Enable RLS
+ALTER TABLE recurring_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE evidence_expiry_tracking ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pack_sharing ENABLE ROW LEVEL SECURITY;
+
+-- recurring_tasks RLS policies
+DROP POLICY IF EXISTS recurring_tasks_select_site_access ON recurring_tasks;
+CREATE POLICY recurring_tasks_select_site_access ON recurring_tasks
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurring_tasks_insert_system_access ON recurring_tasks;
+CREATE POLICY recurring_tasks_insert_system_access ON recurring_tasks
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurring_tasks_update_staff_access ON recurring_tasks;
+CREATE POLICY recurring_tasks_update_staff_access ON recurring_tasks
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS recurring_tasks_delete_owner_admin_access ON recurring_tasks;
+CREATE POLICY recurring_tasks_delete_owner_admin_access ON recurring_tasks
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
+
+-- evidence_expiry_tracking RLS policies
+DROP POLICY IF EXISTS evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking;
+CREATE POLICY evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking;
+CREATE POLICY evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking;
+CREATE POLICY evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
+
+DROP POLICY IF EXISTS evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking;
+CREATE POLICY evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
+
+-- pack_sharing RLS policies
+DROP POLICY IF EXISTS pack_sharing_select_pack_access ON pack_sharing;
+CREATE POLICY pack_sharing_select_pack_access ON pack_sharing
+    FOR SELECT USING (has_company_access(auth.uid(), company_id));
+
+DROP POLICY IF EXISTS pack_sharing_insert_pack_access ON pack_sharing;
+CREATE POLICY pack_sharing_insert_pack_access ON pack_sharing
+    FOR INSERT WITH CHECK (has_company_access(auth.uid(), company_id));
+
+DROP POLICY IF EXISTS pack_sharing_update_pack_access ON pack_sharing;
+CREATE POLICY pack_sharing_update_pack_access ON pack_sharing
+    FOR UPDATE USING (has_company_access(auth.uid(), company_id));
+
+DROP POLICY IF EXISTS pack_sharing_delete_pack_access ON pack_sharing;
+CREATE POLICY pack_sharing_delete_pack_access ON pack_sharing
+    FOR DELETE USING (has_company_access(auth.uid(), company_id));
 
 -- ============================================================================
--- 4. TRIGGERS
+-- TRIGGERS
 -- ============================================================================
 
 -- Update updated_at for recurring_tasks
+DROP TRIGGER IF EXISTS trigger_update_recurring_tasks_updated_at ON recurring_tasks;
 CREATE OR REPLACE FUNCTION update_recurring_tasks_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -241,6 +177,7 @@ CREATE TRIGGER trigger_update_recurring_tasks_updated_at
     EXECUTE FUNCTION update_recurring_tasks_updated_at();
 
 -- Update updated_at for evidence_expiry_tracking
+DROP TRIGGER IF EXISTS trigger_update_evidence_expiry_tracking_updated_at ON evidence_expiry_tracking;
 CREATE OR REPLACE FUNCTION update_evidence_expiry_tracking_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -255,6 +192,7 @@ CREATE TRIGGER trigger_update_evidence_expiry_tracking_updated_at
     EXECUTE FUNCTION update_evidence_expiry_tracking_updated_at();
 
 -- Update updated_at for pack_sharing
+DROP TRIGGER IF EXISTS trigger_update_pack_sharing_updated_at ON pack_sharing;
 CREATE OR REPLACE FUNCTION update_pack_sharing_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -267,4 +205,3 @@ CREATE TRIGGER trigger_update_pack_sharing_updated_at
     BEFORE UPDATE ON pack_sharing
     FOR EACH ROW
     EXECUTE FUNCTION update_pack_sharing_updated_at();
-

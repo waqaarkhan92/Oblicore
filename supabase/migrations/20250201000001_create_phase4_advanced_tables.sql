@@ -354,13 +354,5 @@ CREATE TRIGGER update_exemptions_updated_at
 
 
 
--- Deferred Foreign Key Constraints
--- Deferred FK: corrective_action_id -> corrective_actions
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'corrective_actions') THEN
-    ALTER TABLE sampling_logistics 
-    ADD CONSTRAINT fk_sampling_logistics_corrective_action_id
-    FOREIGN KEY (corrective_action_id) REFERENCES corrective_actions(id) ON DELETE CASCADE;
-  END IF;
-END $$;
+-- Note: Removed invalid deferred FK for corrective_action_id
+-- (column does not exist in sampling_logistics table)

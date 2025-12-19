@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS corrective_actions (
     action_description TEXT NOT NULL,
     assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
     due_date DATE NOT NULL,
-    status TEXT NOT NULL DEFAULT 'OPEN' 
+    status TEXT NOT NULL DEFAULT 'OPEN'
         CHECK (status IN ('OPEN', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED', 'CLOSED')),
     completed_date DATE,
     verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS runtime_monitoring (
     verified_at TIMESTAMP WITH TIME ZONE,
     notes TEXT,
     entry_reason_notes TEXT,
-    validation_status TEXT 
+    validation_status TEXT
         CHECK (validation_status IN ('PENDING', 'APPROVED', 'REJECTED')),
     validated_by UUID REFERENCES users(id) ON DELETE SET NULL,
     csv_import_id UUID,
@@ -104,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_reason_code ON runtime_monitor
 CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_validation_status ON runtime_monitoring(validation_status);
 CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_csv_import_id ON runtime_monitoring(csv_import_id);
 CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_evidence_linkage_id ON runtime_monitoring(evidence_linkage_id);
-CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_job_escalation_flags ON runtime_monitoring(job_escalation_threshold_exceeded, job_escalation_annual_limit_exceeded, job_escalation_monthly_limit_exceeded) 
+CREATE INDEX IF NOT EXISTS idx_runtime_monitoring_job_escalation_flags ON runtime_monitoring(job_escalation_threshold_exceeded, job_escalation_annual_limit_exceeded, job_escalation_monthly_limit_exceeded)
     WHERE job_escalation_threshold_exceeded = true OR job_escalation_annual_limit_exceeded = true OR job_escalation_monthly_limit_exceeded = true;
 
 -- ============================================================================
@@ -134,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_escalation_workflows_obligation_category ON escal
 CREATE INDEX IF NOT EXISTS idx_escalation_workflows_is_active ON escalation_workflows(is_active);
 
 -- ============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES - CONDITIONAL
+-- ROW LEVEL SECURITY (RLS) POLICIES - Using has_site_access function
 -- ============================================================================
 
 -- Enable RLS
@@ -142,186 +142,75 @@ ALTER TABLE corrective_actions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE runtime_monitoring ENABLE ROW LEVEL SECURITY;
 ALTER TABLE escalation_workflows ENABLE ROW LEVEL SECURITY;
 
--- corrective_actions RLS policies (only if view exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS corrective_actions_select_site_access ON corrective_actions;
-      CREATE POLICY corrective_actions_select_site_access ON corrective_actions
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = corrective_actions.site_id
-        )
-      );
+-- corrective_actions RLS policies (using helper function)
+DROP POLICY IF EXISTS corrective_actions_select ON corrective_actions;
+CREATE POLICY corrective_actions_select ON corrective_actions
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS corrective_actions_insert_staff_access ON corrective_actions;
-      CREATE POLICY corrective_actions_insert_staff_access ON corrective_actions
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = corrective_actions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS corrective_actions_insert ON corrective_actions;
+CREATE POLICY corrective_actions_insert ON corrective_actions
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS corrective_actions_update_staff_access ON corrective_actions;
-      CREATE POLICY corrective_actions_update_staff_access ON corrective_actions
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = corrective_actions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS corrective_actions_update ON corrective_actions;
+CREATE POLICY corrective_actions_update ON corrective_actions
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS corrective_actions_delete_owner_admin_access ON corrective_actions;
-      CREATE POLICY corrective_actions_delete_owner_admin_access ON corrective_actions
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = corrective_actions.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS corrective_actions_delete ON corrective_actions;
+CREATE POLICY corrective_actions_delete ON corrective_actions
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
--- runtime_monitoring RLS policies (only if view exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    DROP POLICY IF EXISTS runtime_monitoring_select_site_access ON runtime_monitoring;
-      CREATE POLICY runtime_monitoring_select_site_access ON runtime_monitoring
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = runtime_monitoring.site_id
-        )
-      );
+-- runtime_monitoring RLS policies (using helper function)
+DROP POLICY IF EXISTS runtime_monitoring_select ON runtime_monitoring;
+CREATE POLICY runtime_monitoring_select ON runtime_monitoring
+    FOR SELECT USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS runtime_monitoring_insert_staff_access ON runtime_monitoring;
-      CREATE POLICY runtime_monitoring_insert_staff_access ON runtime_monitoring
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = runtime_monitoring.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS runtime_monitoring_insert ON runtime_monitoring;
+CREATE POLICY runtime_monitoring_insert ON runtime_monitoring
+    FOR INSERT WITH CHECK (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS runtime_monitoring_update_staff_access ON runtime_monitoring;
-      CREATE POLICY runtime_monitoring_update_staff_access ON runtime_monitoring
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = runtime_monitoring.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS runtime_monitoring_update ON runtime_monitoring;
+CREATE POLICY runtime_monitoring_update ON runtime_monitoring
+    FOR UPDATE USING (has_site_access(auth.uid(), site_id));
 
-    DROP POLICY IF EXISTS runtime_monitoring_delete_owner_admin_access ON runtime_monitoring;
-      CREATE POLICY runtime_monitoring_delete_owner_admin_access ON runtime_monitoring
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_site_access
-          WHERE user_site_access.user_id = auth.uid()
-          AND user_site_access.site_id = runtime_monitoring.site_id
-          AND user_site_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS runtime_monitoring_delete ON runtime_monitoring;
+CREATE POLICY runtime_monitoring_delete ON runtime_monitoring
+    FOR DELETE USING (has_site_access(auth.uid(), site_id));
 
--- escalation_workflows RLS policies (only if view exists)
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_company_access') THEN
-    DROP POLICY IF EXISTS escalation_workflows_select_company_access ON escalation_workflows;
-      CREATE POLICY escalation_workflows_select_company_access ON escalation_workflows
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access
-          WHERE user_company_access.user_id = auth.uid()
-          AND user_company_access.company_id = escalation_workflows.company_id
-        )
-      );
+-- escalation_workflows RLS policies (using helper function)
+DROP POLICY IF EXISTS escalation_workflows_select ON escalation_workflows;
+CREATE POLICY escalation_workflows_select ON escalation_workflows
+    FOR SELECT USING (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS escalation_workflows_insert_staff_access ON escalation_workflows;
-      CREATE POLICY escalation_workflows_insert_staff_access ON escalation_workflows
-      FOR INSERT
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM user_company_access
-          WHERE user_company_access.user_id = auth.uid()
-          AND user_company_access.company_id = escalation_workflows.company_id
-          AND user_company_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS escalation_workflows_insert ON escalation_workflows;
+CREATE POLICY escalation_workflows_insert ON escalation_workflows
+    FOR INSERT WITH CHECK (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS escalation_workflows_update_staff_access ON escalation_workflows;
-      CREATE POLICY escalation_workflows_update_staff_access ON escalation_workflows
-      FOR UPDATE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access
-          WHERE user_company_access.user_id = auth.uid()
-          AND user_company_access.company_id = escalation_workflows.company_id
-          AND user_company_access.role IN ('OWNER', 'ADMIN', 'STAFF')
-        )
-      );
+DROP POLICY IF EXISTS escalation_workflows_update ON escalation_workflows;
+CREATE POLICY escalation_workflows_update ON escalation_workflows
+    FOR UPDATE USING (has_company_access(auth.uid(), company_id));
 
-    DROP POLICY IF EXISTS escalation_workflows_delete_owner_admin_access ON escalation_workflows;
-      CREATE POLICY escalation_workflows_delete_owner_admin_access ON escalation_workflows
-      FOR DELETE
-      USING (
-        EXISTS (
-          SELECT 1 FROM user_company_access
-          WHERE user_company_access.user_id = auth.uid()
-          AND user_company_access.company_id = escalation_workflows.company_id
-          AND user_company_access.role IN ('OWNER', 'ADMIN')
-        )
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS escalation_workflows_delete ON escalation_workflows;
+CREATE POLICY escalation_workflows_delete ON escalation_workflows
+    FOR DELETE USING (has_company_access(auth.uid(), company_id));
 
 -- ============================================================================
--- TRIGGERS - CONDITIONAL (Only if function exists)
+-- TRIGGERS - Using update_updated_at_column function
 -- ============================================================================
 
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'update_updated_at_column') THEN
-    CREATE TRIGGER IF NOT EXISTS trigger_update_corrective_actions_updated_at
-      BEFORE UPDATE ON corrective_actions
-      FOR EACH ROW
-      EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS trigger_update_corrective_actions_updated_at ON corrective_actions;
+CREATE TRIGGER trigger_update_corrective_actions_updated_at
+    BEFORE UPDATE ON corrective_actions
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
-    CREATE TRIGGER IF NOT EXISTS trigger_update_runtime_monitoring_updated_at
-      BEFORE UPDATE ON runtime_monitoring
-      FOR EACH ROW
-      EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS trigger_update_runtime_monitoring_updated_at ON runtime_monitoring;
+CREATE TRIGGER trigger_update_runtime_monitoring_updated_at
+    BEFORE UPDATE ON runtime_monitoring
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
-    CREATE TRIGGER IF NOT EXISTS trigger_update_escalation_workflows_updated_at
-      BEFORE UPDATE ON escalation_workflows
-      FOR EACH ROW
-      EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
+DROP TRIGGER IF EXISTS trigger_update_escalation_workflows_updated_at ON escalation_workflows;
+CREATE TRIGGER trigger_update_escalation_workflows_updated_at
+    BEFORE UPDATE ON escalation_workflows
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

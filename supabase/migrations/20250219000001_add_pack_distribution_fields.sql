@@ -28,10 +28,10 @@ CREATE INDEX IF NOT EXISTS idx_pack_distributions_expires_at
     ON pack_distributions(expires_at)
     WHERE expires_at IS NOT NULL;
 
--- Add composite index for active distribution lookups
+-- Add composite index for active distribution lookups (without NOW() predicate)
 CREATE INDEX IF NOT EXISTS idx_pack_distributions_active
     ON pack_distributions(pack_id, distribution_method, expires_at)
-    WHERE expires_at > NOW();
+    WHERE expires_at IS NOT NULL;
 
 -- ============================================================================
 -- SECTION 3: ADD delivery_status TO pack_distributions

@@ -56,22 +56,22 @@ CREATE POLICY report_configs_insert_policy ON report_configs
         )
     );
 
--- Users can update their own report configs
+-- Users can update report configs for their company
 CREATE POLICY report_configs_update_policy ON report_configs
     FOR UPDATE
     USING (
         created_by = auth.uid() OR
         company_id IN (
-            SELECT company_id FROM users WHERE id = auth.uid() AND role IN ('COMPANY_ADMIN', 'SUPER_ADMIN')
+            SELECT company_id FROM users WHERE id = auth.uid()
         )
     );
 
--- Users can delete their own report configs
+-- Users can delete report configs for their company
 CREATE POLICY report_configs_delete_policy ON report_configs
     FOR DELETE
     USING (
         created_by = auth.uid() OR
         company_id IN (
-            SELECT company_id FROM users WHERE id = auth.uid() AND role IN ('COMPANY_ADMIN', 'SUPER_ADMIN')
+            SELECT company_id FROM users WHERE id = auth.uid()
         )
     );
