@@ -125,6 +125,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function: get_user_company_ids
+-- Purpose: Get all company IDs a user has access to (for RLS policies)
+-- Regular users: their own company
+-- Consultants: assigned client companies
+CREATE OR REPLACE FUNCTION get_user_company_ids()
+RETURNS SETOF UUID AS $$
+BEGIN
+  -- Return user's own company
+  RETURN QUERY
+  SELECT company_id FROM users WHERE id = auth.uid() AND deleted_at IS NULL;
+
+  -- Return consultant assigned client companies
+  RETURN QUERY
+  SELECT client_company_id FROM consultant_client_assignments
+  WHERE consultant_id = auth.uid() AND status = 'ACTIVE';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
 -- Function: is_module_activated
 -- Purpose: Check if a module is activated for a company
 CREATE OR REPLACE FUNCTION is_module_activated(

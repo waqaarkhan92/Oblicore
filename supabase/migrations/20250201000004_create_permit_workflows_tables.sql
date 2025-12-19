@@ -100,7 +100,8 @@ ALTER TABLE permit_surrenders ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS permit_workflows_select_site_access ON permit_workflows
+    DROP POLICY IF EXISTS permit_workflows_select_site_access ON permit_workflows;
+      CREATE POLICY permit_workflows_select_site_access ON permit_workflows
       FOR SELECT
       USING (
         EXISTS (
@@ -110,7 +111,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_workflows_insert_staff_access ON permit_workflows
+    DROP POLICY IF EXISTS permit_workflows_insert_staff_access ON permit_workflows;
+      CREATE POLICY permit_workflows_insert_staff_access ON permit_workflows
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -121,7 +123,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_workflows_update_staff_access ON permit_workflows
+    DROP POLICY IF EXISTS permit_workflows_update_staff_access ON permit_workflows;
+      CREATE POLICY permit_workflows_update_staff_access ON permit_workflows
       FOR UPDATE
       USING (
         EXISTS (
@@ -138,7 +141,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS permit_variations_select_site_access ON permit_variations
+    DROP POLICY IF EXISTS permit_variations_select_site_access ON permit_variations;
+      CREATE POLICY permit_variations_select_site_access ON permit_variations
       FOR SELECT
       USING (
         EXISTS (
@@ -148,7 +152,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_variations_insert_staff_access ON permit_variations
+    DROP POLICY IF EXISTS permit_variations_insert_staff_access ON permit_variations;
+      CREATE POLICY permit_variations_insert_staff_access ON permit_variations
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -159,7 +164,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_variations_update_staff_access ON permit_variations
+    DROP POLICY IF EXISTS permit_variations_update_staff_access ON permit_variations;
+      CREATE POLICY permit_variations_update_staff_access ON permit_variations
       FOR UPDATE
       USING (
         EXISTS (
@@ -176,7 +182,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS permit_surrenders_select_site_access ON permit_surrenders
+    DROP POLICY IF EXISTS permit_surrenders_select_site_access ON permit_surrenders;
+      CREATE POLICY permit_surrenders_select_site_access ON permit_surrenders
       FOR SELECT
       USING (
         EXISTS (
@@ -186,7 +193,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_surrenders_insert_staff_access ON permit_surrenders
+    DROP POLICY IF EXISTS permit_surrenders_insert_staff_access ON permit_surrenders;
+      CREATE POLICY permit_surrenders_insert_staff_access ON permit_surrenders
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -197,7 +205,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS permit_surrenders_update_staff_access ON permit_surrenders
+    DROP POLICY IF EXISTS permit_surrenders_update_staff_access ON permit_surrenders;
+      CREATE POLICY permit_surrenders_update_staff_access ON permit_surrenders
       FOR UPDATE
       USING (
         EXISTS (

@@ -41,7 +41,8 @@ ALTER TABLE condition_permissions ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS condition_permissions_select_site_access ON condition_permissions
+    DROP POLICY IF EXISTS condition_permissions_select_site_access ON condition_permissions;
+      CREATE POLICY condition_permissions_select_site_access ON condition_permissions
       FOR SELECT
       USING (
         EXISTS (
@@ -51,7 +52,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_permissions_insert_staff_access ON condition_permissions
+    DROP POLICY IF EXISTS condition_permissions_insert_staff_access ON condition_permissions;
+      CREATE POLICY condition_permissions_insert_staff_access ON condition_permissions
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -62,7 +64,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_permissions_update_staff_access ON condition_permissions
+    DROP POLICY IF EXISTS condition_permissions_update_staff_access ON condition_permissions;
+      CREATE POLICY condition_permissions_update_staff_access ON condition_permissions
       FOR UPDATE
       USING (
         EXISTS (
@@ -73,7 +76,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_permissions_delete_owner_admin_access ON condition_permissions
+    DROP POLICY IF EXISTS condition_permissions_delete_owner_admin_access ON condition_permissions;
+      CREATE POLICY condition_permissions_delete_owner_admin_access ON condition_permissions
       FOR DELETE
       USING (
         EXISTS (

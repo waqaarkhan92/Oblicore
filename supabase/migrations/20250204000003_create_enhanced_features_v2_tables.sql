@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS compliance_risk_scores (
 CREATE INDEX idx_risk_scores_company ON compliance_risk_scores(company_id);
 CREATE INDEX idx_risk_scores_site ON compliance_risk_scores(site_id) WHERE site_id IS NOT NULL;
 CREATE INDEX idx_risk_scores_obligation ON compliance_risk_scores(obligation_id) WHERE obligation_id IS NOT NULL;
-CREATE INDEX idx_risk_scores_valid ON compliance_risk_scores(valid_until) WHERE valid_until > NOW();
+CREATE INDEX idx_risk_scores_valid ON compliance_risk_scores(valid_until) WHERE valid_until IS NOT NULL;
 
 -- Risk score history for trending
 CREATE TABLE IF NOT EXISTS compliance_risk_history (

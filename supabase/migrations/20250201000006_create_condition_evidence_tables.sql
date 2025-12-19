@@ -71,7 +71,8 @@ ALTER TABLE evidence_completeness_scores ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS condition_evidence_rules_select_site_access ON condition_evidence_rules
+    DROP POLICY IF EXISTS condition_evidence_rules_select_site_access ON condition_evidence_rules;
+      CREATE POLICY condition_evidence_rules_select_site_access ON condition_evidence_rules
       FOR SELECT
       USING (
         EXISTS (
@@ -81,7 +82,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_evidence_rules_insert_staff_access ON condition_evidence_rules
+    DROP POLICY IF EXISTS condition_evidence_rules_insert_staff_access ON condition_evidence_rules;
+      CREATE POLICY condition_evidence_rules_insert_staff_access ON condition_evidence_rules
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -92,7 +94,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_evidence_rules_update_staff_access ON condition_evidence_rules
+    DROP POLICY IF EXISTS condition_evidence_rules_update_staff_access ON condition_evidence_rules;
+      CREATE POLICY condition_evidence_rules_update_staff_access ON condition_evidence_rules
       FOR UPDATE
       USING (
         EXISTS (
@@ -103,7 +106,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS condition_evidence_rules_delete_owner_admin_access ON condition_evidence_rules
+    DROP POLICY IF EXISTS condition_evidence_rules_delete_owner_admin_access ON condition_evidence_rules;
+      CREATE POLICY condition_evidence_rules_delete_owner_admin_access ON condition_evidence_rules
       FOR DELETE
       USING (
         EXISTS (
@@ -120,7 +124,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS evidence_completeness_scores_select_site_access ON evidence_completeness_scores
+    DROP POLICY IF EXISTS evidence_completeness_scores_select_site_access ON evidence_completeness_scores;
+      CREATE POLICY evidence_completeness_scores_select_site_access ON evidence_completeness_scores
       FOR SELECT
       USING (
         EXISTS (
@@ -130,15 +135,18 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS evidence_completeness_scores_insert_system_access ON evidence_completeness_scores
+    DROP POLICY IF EXISTS evidence_completeness_scores_insert_system_access ON evidence_completeness_scores;
+      CREATE POLICY evidence_completeness_scores_insert_system_access ON evidence_completeness_scores
       FOR INSERT
       WITH CHECK (false); -- System only, inserted via triggers/jobs
 
-    CREATE POLICY IF NOT EXISTS evidence_completeness_scores_update_system_access ON evidence_completeness_scores
+    DROP POLICY IF EXISTS evidence_completeness_scores_update_system_access ON evidence_completeness_scores;
+      CREATE POLICY evidence_completeness_scores_update_system_access ON evidence_completeness_scores
       FOR UPDATE
       USING (false); -- System only, updated via triggers/jobs
 
-    CREATE POLICY IF NOT EXISTS evidence_completeness_scores_delete_owner_admin_access ON evidence_completeness_scores
+    DROP POLICY IF EXISTS evidence_completeness_scores_delete_owner_admin_access ON evidence_completeness_scores;
+      CREATE POLICY evidence_completeness_scores_delete_owner_admin_access ON evidence_completeness_scores
       FOR DELETE
       USING (
         EXISTS (

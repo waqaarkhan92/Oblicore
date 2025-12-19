@@ -146,7 +146,8 @@ ALTER TABLE escalation_workflows ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS corrective_actions_select_site_access ON corrective_actions
+    DROP POLICY IF EXISTS corrective_actions_select_site_access ON corrective_actions;
+      CREATE POLICY corrective_actions_select_site_access ON corrective_actions
       FOR SELECT
       USING (
         EXISTS (
@@ -156,7 +157,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS corrective_actions_insert_staff_access ON corrective_actions
+    DROP POLICY IF EXISTS corrective_actions_insert_staff_access ON corrective_actions;
+      CREATE POLICY corrective_actions_insert_staff_access ON corrective_actions
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -167,7 +169,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS corrective_actions_update_staff_access ON corrective_actions
+    DROP POLICY IF EXISTS corrective_actions_update_staff_access ON corrective_actions;
+      CREATE POLICY corrective_actions_update_staff_access ON corrective_actions
       FOR UPDATE
       USING (
         EXISTS (
@@ -178,7 +181,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS corrective_actions_delete_owner_admin_access ON corrective_actions
+    DROP POLICY IF EXISTS corrective_actions_delete_owner_admin_access ON corrective_actions;
+      CREATE POLICY corrective_actions_delete_owner_admin_access ON corrective_actions
       FOR DELETE
       USING (
         EXISTS (
@@ -195,7 +199,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS runtime_monitoring_select_site_access ON runtime_monitoring
+    DROP POLICY IF EXISTS runtime_monitoring_select_site_access ON runtime_monitoring;
+      CREATE POLICY runtime_monitoring_select_site_access ON runtime_monitoring
       FOR SELECT
       USING (
         EXISTS (
@@ -205,7 +210,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS runtime_monitoring_insert_staff_access ON runtime_monitoring
+    DROP POLICY IF EXISTS runtime_monitoring_insert_staff_access ON runtime_monitoring;
+      CREATE POLICY runtime_monitoring_insert_staff_access ON runtime_monitoring
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -216,7 +222,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS runtime_monitoring_update_staff_access ON runtime_monitoring
+    DROP POLICY IF EXISTS runtime_monitoring_update_staff_access ON runtime_monitoring;
+      CREATE POLICY runtime_monitoring_update_staff_access ON runtime_monitoring
       FOR UPDATE
       USING (
         EXISTS (
@@ -227,7 +234,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS runtime_monitoring_delete_owner_admin_access ON runtime_monitoring
+    DROP POLICY IF EXISTS runtime_monitoring_delete_owner_admin_access ON runtime_monitoring;
+      CREATE POLICY runtime_monitoring_delete_owner_admin_access ON runtime_monitoring
       FOR DELETE
       USING (
         EXISTS (
@@ -244,7 +252,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_company_access') THEN
-    CREATE POLICY IF NOT EXISTS escalation_workflows_select_company_access ON escalation_workflows
+    DROP POLICY IF EXISTS escalation_workflows_select_company_access ON escalation_workflows;
+      CREATE POLICY escalation_workflows_select_company_access ON escalation_workflows
       FOR SELECT
       USING (
         EXISTS (
@@ -254,7 +263,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS escalation_workflows_insert_staff_access ON escalation_workflows
+    DROP POLICY IF EXISTS escalation_workflows_insert_staff_access ON escalation_workflows;
+      CREATE POLICY escalation_workflows_insert_staff_access ON escalation_workflows
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -265,7 +275,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS escalation_workflows_update_staff_access ON escalation_workflows
+    DROP POLICY IF EXISTS escalation_workflows_update_staff_access ON escalation_workflows;
+      CREATE POLICY escalation_workflows_update_staff_access ON escalation_workflows
       FOR UPDATE
       USING (
         EXISTS (
@@ -276,7 +287,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS escalation_workflows_delete_owner_admin_access ON escalation_workflows
+    DROP POLICY IF EXISTS escalation_workflows_delete_owner_admin_access ON escalation_workflows;
+      CREATE POLICY escalation_workflows_delete_owner_admin_access ON escalation_workflows
       FOR DELETE
       USING (
         EXISTS (

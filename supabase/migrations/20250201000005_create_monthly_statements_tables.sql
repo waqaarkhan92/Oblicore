@@ -100,7 +100,8 @@ ALTER TABLE reconciliation_discrepancies ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS monthly_statements_select_site_module ON monthly_statements
+    DROP POLICY IF EXISTS monthly_statements_select_site_module ON monthly_statements;
+      CREATE POLICY monthly_statements_select_site_module ON monthly_statements
       FOR SELECT
       USING (
         EXISTS (
@@ -113,7 +114,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS monthly_statements_insert_staff_module ON monthly_statements
+    DROP POLICY IF EXISTS monthly_statements_insert_staff_module ON monthly_statements;
+      CREATE POLICY monthly_statements_insert_staff_module ON monthly_statements
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -127,7 +129,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS monthly_statements_update_staff_module ON monthly_statements
+    DROP POLICY IF EXISTS monthly_statements_update_staff_module ON monthly_statements;
+      CREATE POLICY monthly_statements_update_staff_module ON monthly_statements
       FOR UPDATE
       USING (
         EXISTS (
@@ -141,7 +144,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS monthly_statements_delete_owner_admin_module ON monthly_statements
+    DROP POLICY IF EXISTS monthly_statements_delete_owner_admin_module ON monthly_statements;
+      CREATE POLICY monthly_statements_delete_owner_admin_module ON monthly_statements
       FOR DELETE
       USING (
         EXISTS (
@@ -161,7 +165,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS statement_reconciliations_select_site_module ON statement_reconciliations
+    DROP POLICY IF EXISTS statement_reconciliations_select_site_module ON statement_reconciliations;
+      CREATE POLICY statement_reconciliations_select_site_module ON statement_reconciliations
       FOR SELECT
       USING (
         EXISTS (
@@ -174,7 +179,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS statement_reconciliations_insert_staff_module ON statement_reconciliations
+    DROP POLICY IF EXISTS statement_reconciliations_insert_staff_module ON statement_reconciliations;
+      CREATE POLICY statement_reconciliations_insert_staff_module ON statement_reconciliations
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -188,7 +194,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS statement_reconciliations_update_staff_module ON statement_reconciliations
+    DROP POLICY IF EXISTS statement_reconciliations_update_staff_module ON statement_reconciliations;
+      CREATE POLICY statement_reconciliations_update_staff_module ON statement_reconciliations
       FOR UPDATE
       USING (
         EXISTS (
@@ -202,7 +209,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS statement_reconciliations_delete_owner_admin_module ON statement_reconciliations
+    DROP POLICY IF EXISTS statement_reconciliations_delete_owner_admin_module ON statement_reconciliations;
+      CREATE POLICY statement_reconciliations_delete_owner_admin_module ON statement_reconciliations
       FOR DELETE
       USING (
         EXISTS (
@@ -222,7 +230,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies
+    DROP POLICY IF EXISTS reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies;
+      CREATE POLICY reconciliation_discrepancies_select_site_module ON reconciliation_discrepancies
       FOR SELECT
       USING (
         EXISTS (
@@ -235,7 +244,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies
+    DROP POLICY IF EXISTS reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies;
+      CREATE POLICY reconciliation_discrepancies_insert_staff_module ON reconciliation_discrepancies
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -249,7 +259,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies
+    DROP POLICY IF EXISTS reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies;
+      CREATE POLICY reconciliation_discrepancies_update_staff_module ON reconciliation_discrepancies
       FOR UPDATE
       USING (
         EXISTS (

@@ -32,7 +32,8 @@ ALTER TABLE recurrence_events ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS recurrence_events_select_site_access ON recurrence_events
+    DROP POLICY IF EXISTS recurrence_events_select_site_access ON recurrence_events;
+      CREATE POLICY recurrence_events_select_site_access ON recurrence_events
       FOR SELECT
       USING (
         EXISTS (
@@ -42,7 +43,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_events_insert_staff_access ON recurrence_events
+    DROP POLICY IF EXISTS recurrence_events_insert_staff_access ON recurrence_events;
+      CREATE POLICY recurrence_events_insert_staff_access ON recurrence_events
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -53,7 +55,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_events_update_staff_access ON recurrence_events
+    DROP POLICY IF EXISTS recurrence_events_update_staff_access ON recurrence_events;
+      CREATE POLICY recurrence_events_update_staff_access ON recurrence_events
       FOR UPDATE
       USING (
         EXISTS (
@@ -64,7 +67,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_events_delete_owner_admin_access ON recurrence_events
+    DROP POLICY IF EXISTS recurrence_events_delete_owner_admin_access ON recurrence_events;
+      CREATE POLICY recurrence_events_delete_owner_admin_access ON recurrence_events
       FOR DELETE
       USING (
         EXISTS (
@@ -116,7 +120,8 @@ ALTER TABLE recurrence_trigger_rules ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules
+    DROP POLICY IF EXISTS recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules;
+      CREATE POLICY recurrence_trigger_rules_select_site_access ON recurrence_trigger_rules
       FOR SELECT
       USING (
         EXISTS (
@@ -126,7 +131,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules
+    DROP POLICY IF EXISTS recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules;
+      CREATE POLICY recurrence_trigger_rules_insert_staff_access ON recurrence_trigger_rules
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -137,7 +143,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules
+    DROP POLICY IF EXISTS recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules;
+      CREATE POLICY recurrence_trigger_rules_update_staff_access ON recurrence_trigger_rules
       FOR UPDATE
       USING (
         EXISTS (
@@ -148,7 +155,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules
+    DROP POLICY IF EXISTS recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules;
+      CREATE POLICY recurrence_trigger_rules_delete_owner_admin_access ON recurrence_trigger_rules
       FOR DELETE
       USING (
         EXISTS (
@@ -194,7 +202,8 @@ ALTER TABLE recurrence_conditions ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS recurrence_conditions_select_site_access ON recurrence_conditions
+    DROP POLICY IF EXISTS recurrence_conditions_select_site_access ON recurrence_conditions;
+      CREATE POLICY recurrence_conditions_select_site_access ON recurrence_conditions
       FOR SELECT
       USING (
         EXISTS (
@@ -204,7 +213,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_conditions_insert_staff_access ON recurrence_conditions
+    DROP POLICY IF EXISTS recurrence_conditions_insert_staff_access ON recurrence_conditions;
+      CREATE POLICY recurrence_conditions_insert_staff_access ON recurrence_conditions
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -215,7 +225,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_conditions_update_staff_access ON recurrence_conditions
+    DROP POLICY IF EXISTS recurrence_conditions_update_staff_access ON recurrence_conditions;
+      CREATE POLICY recurrence_conditions_update_staff_access ON recurrence_conditions
       FOR UPDATE
       USING (
         EXISTS (
@@ -226,7 +237,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS recurrence_conditions_delete_owner_admin_access ON recurrence_conditions
+    DROP POLICY IF EXISTS recurrence_conditions_delete_owner_admin_access ON recurrence_conditions;
+      CREATE POLICY recurrence_conditions_delete_owner_admin_access ON recurrence_conditions
       FOR DELETE
       USING (
         EXISTS (

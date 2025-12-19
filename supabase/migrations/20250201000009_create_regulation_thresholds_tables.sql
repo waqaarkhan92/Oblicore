@@ -98,7 +98,8 @@ ALTER TABLE frequency_calculations ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_company_access') THEN
-    CREATE POLICY IF NOT EXISTS regulation_thresholds_select_company_module ON regulation_thresholds
+    DROP POLICY IF EXISTS regulation_thresholds_select_company_module ON regulation_thresholds;
+      CREATE POLICY regulation_thresholds_select_company_module ON regulation_thresholds
       FOR SELECT
       USING (
         EXISTS (
@@ -111,7 +112,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS regulation_thresholds_insert_staff_module ON regulation_thresholds
+    DROP POLICY IF EXISTS regulation_thresholds_insert_staff_module ON regulation_thresholds;
+      CREATE POLICY regulation_thresholds_insert_staff_module ON regulation_thresholds
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -125,7 +127,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS regulation_thresholds_update_staff_module ON regulation_thresholds
+    DROP POLICY IF EXISTS regulation_thresholds_update_staff_module ON regulation_thresholds;
+      CREATE POLICY regulation_thresholds_update_staff_module ON regulation_thresholds
       FOR UPDATE
       USING (
         EXISTS (
@@ -139,7 +142,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS regulation_thresholds_delete_owner_admin_module ON regulation_thresholds
+    DROP POLICY IF EXISTS regulation_thresholds_delete_owner_admin_module ON regulation_thresholds;
+      CREATE POLICY regulation_thresholds_delete_owner_admin_module ON regulation_thresholds
       FOR DELETE
       USING (
         EXISTS (
@@ -159,7 +163,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS threshold_compliance_rules_select_site_module ON threshold_compliance_rules
+    DROP POLICY IF EXISTS threshold_compliance_rules_select_site_module ON threshold_compliance_rules;
+      CREATE POLICY threshold_compliance_rules_select_site_module ON threshold_compliance_rules
       FOR SELECT
       USING (
         EXISTS (
@@ -172,7 +177,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules
+    DROP POLICY IF EXISTS threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules;
+      CREATE POLICY threshold_compliance_rules_insert_staff_module ON threshold_compliance_rules
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -186,7 +192,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS threshold_compliance_rules_update_staff_module ON threshold_compliance_rules
+    DROP POLICY IF EXISTS threshold_compliance_rules_update_staff_module ON threshold_compliance_rules;
+      CREATE POLICY threshold_compliance_rules_update_staff_module ON threshold_compliance_rules
       FOR UPDATE
       USING (
         EXISTS (
@@ -206,7 +213,8 @@ END $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS frequency_calculations_select_site_module ON frequency_calculations
+    DROP POLICY IF EXISTS frequency_calculations_select_site_module ON frequency_calculations;
+      CREATE POLICY frequency_calculations_select_site_module ON frequency_calculations
       FOR SELECT
       USING (
         EXISTS (
@@ -219,7 +227,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS frequency_calculations_insert_staff_module ON frequency_calculations
+    DROP POLICY IF EXISTS frequency_calculations_insert_staff_module ON frequency_calculations;
+      CREATE POLICY frequency_calculations_insert_staff_module ON frequency_calculations
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -233,7 +242,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS frequency_calculations_update_staff_module ON frequency_calculations
+    DROP POLICY IF EXISTS frequency_calculations_update_staff_module ON frequency_calculations;
+      CREATE POLICY frequency_calculations_update_staff_module ON frequency_calculations
       FOR UPDATE
       USING (
         EXISTS (

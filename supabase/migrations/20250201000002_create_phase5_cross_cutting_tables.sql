@@ -44,7 +44,8 @@ DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
     EXECUTE format('
-      CREATE POLICY IF NOT EXISTS recurring_tasks_select_site_access ON recurring_tasks
+      DROP POLICY IF EXISTS recurring_tasks_select_site_access ON recurring_tasks;
+      CREATE POLICY recurring_tasks_select_site_access ON recurring_tasks
         FOR SELECT
         USING (
           EXISTS (
@@ -56,13 +57,15 @@ BEGIN
     ');
 
     EXECUTE format('
-      CREATE POLICY IF NOT EXISTS recurring_tasks_insert_system_access ON recurring_tasks
+      DROP POLICY IF EXISTS recurring_tasks_insert_system_access ON recurring_tasks;
+      CREATE POLICY recurring_tasks_insert_system_access ON recurring_tasks
         FOR INSERT
         WITH CHECK (false);
     ');
 
     EXECUTE format('
-      CREATE POLICY IF NOT EXISTS recurring_tasks_update_staff_access ON recurring_tasks
+      DROP POLICY IF EXISTS recurring_tasks_update_staff_access ON recurring_tasks;
+      CREATE POLICY recurring_tasks_update_staff_access ON recurring_tasks
         FOR UPDATE
         USING (
           EXISTS (
@@ -75,7 +78,8 @@ BEGIN
     ');
 
     EXECUTE format('
-      CREATE POLICY IF NOT EXISTS recurring_tasks_delete_owner_admin_access ON recurring_tasks
+      DROP POLICY IF EXISTS recurring_tasks_delete_owner_admin_access ON recurring_tasks;
+      CREATE POLICY recurring_tasks_delete_owner_admin_access ON recurring_tasks
         FOR DELETE
         USING (
           EXISTS (
@@ -124,7 +128,8 @@ ALTER TABLE evidence_expiry_tracking ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking
+    DROP POLICY IF EXISTS evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking;
+      CREATE POLICY evidence_expiry_tracking_select_site_access ON evidence_expiry_tracking
       FOR SELECT
       USING (
         EXISTS (
@@ -134,15 +139,18 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking
+    DROP POLICY IF EXISTS evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking;
+      CREATE POLICY evidence_expiry_tracking_insert_system_access ON evidence_expiry_tracking
       FOR INSERT
       WITH CHECK (false); -- Only system can create via background jobs
 
-    CREATE POLICY IF NOT EXISTS evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking
+    DROP POLICY IF EXISTS evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking;
+      CREATE POLICY evidence_expiry_tracking_update_system_access ON evidence_expiry_tracking
       FOR UPDATE
       USING (false); -- Only system can update via background jobs
 
-    CREATE POLICY IF NOT EXISTS evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking
+    DROP POLICY IF EXISTS evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking;
+      CREATE POLICY evidence_expiry_tracking_delete_owner_admin_access ON evidence_expiry_tracking
       FOR DELETE
       USING (
         EXISTS (

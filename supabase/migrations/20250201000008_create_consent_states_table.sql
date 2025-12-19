@@ -38,7 +38,8 @@ ALTER TABLE consent_states ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.views WHERE table_schema = 'public' AND table_name = 'user_site_access') THEN
-    CREATE POLICY IF NOT EXISTS consent_states_select_site_module ON consent_states
+    DROP POLICY IF EXISTS consent_states_select_site_module ON consent_states;
+      CREATE POLICY consent_states_select_site_module ON consent_states
       FOR SELECT
       USING (
         EXISTS (
@@ -51,7 +52,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS consent_states_insert_staff_module ON consent_states
+    DROP POLICY IF EXISTS consent_states_insert_staff_module ON consent_states;
+      CREATE POLICY consent_states_insert_staff_module ON consent_states
       FOR INSERT
       WITH CHECK (
         EXISTS (
@@ -65,7 +67,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS consent_states_update_staff_module ON consent_states
+    DROP POLICY IF EXISTS consent_states_update_staff_module ON consent_states;
+      CREATE POLICY consent_states_update_staff_module ON consent_states
       FOR UPDATE
       USING (
         EXISTS (
@@ -79,7 +82,8 @@ BEGIN
         )
       );
 
-    CREATE POLICY IF NOT EXISTS consent_states_delete_owner_admin_module ON consent_states
+    DROP POLICY IF EXISTS consent_states_delete_owner_admin_module ON consent_states;
+      CREATE POLICY consent_states_delete_owner_admin_module ON consent_states
       FOR DELETE
       USING (
         EXISTS (

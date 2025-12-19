@@ -5,7 +5,8 @@
 ALTER TABLE pack_sharing ENABLE ROW LEVEL SECURITY;
 
 -- Add INSERT policy - Only users with access to the pack's site can create shares
-CREATE POLICY IF NOT EXISTS pack_sharing_insert_site_access ON pack_sharing
+DROP POLICY IF EXISTS pack_sharing_insert_site_access ON pack_sharing;
+      CREATE POLICY pack_sharing_insert_site_access ON pack_sharing
   FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -21,7 +22,8 @@ CREATE POLICY IF NOT EXISTS pack_sharing_insert_site_access ON pack_sharing
   );
 
 -- Add UPDATE policy - Only users with access to the pack's site can update shares
-CREATE POLICY IF NOT EXISTS pack_sharing_update_site_access ON pack_sharing
+DROP POLICY IF EXISTS pack_sharing_update_site_access ON pack_sharing;
+      CREATE POLICY pack_sharing_update_site_access ON pack_sharing
   FOR UPDATE
   USING (
     EXISTS (
@@ -37,7 +39,8 @@ CREATE POLICY IF NOT EXISTS pack_sharing_update_site_access ON pack_sharing
   );
 
 -- Add DELETE policy - Only OWNER/ADMIN can delete pack shares
-CREATE POLICY IF NOT EXISTS pack_sharing_delete_owner_admin_access ON pack_sharing
+DROP POLICY IF EXISTS pack_sharing_delete_owner_admin_access ON pack_sharing;
+      CREATE POLICY pack_sharing_delete_owner_admin_access ON pack_sharing
   FOR DELETE
   USING (
     EXISTS (
