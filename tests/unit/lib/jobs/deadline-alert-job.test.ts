@@ -67,12 +67,14 @@ describe('deadline-alert-job', () => {
       eq: jest.fn().mockReturnValue({
         eq: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockReturnValue(
-              Promise.resolve({
-                data: exists ? { id: 'existing-notification' } : null,
-                error: null,
-              })
-            ),
+            limit: jest.fn().mockReturnValue({
+              single: jest.fn().mockReturnValue(
+                Promise.resolve({
+                  data: exists ? { id: 'existing-notification' } : null,
+                  error: null,
+                })
+              ),
+            }),
           }),
         }),
       }),

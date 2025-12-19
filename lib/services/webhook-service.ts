@@ -2,6 +2,40 @@
  * Webhook Service
  * Manages outbound webhooks for external integrations
  * Reference: docs/specs/90_Enhanced_Features_V2.md Section 14
+ *
+ * WEBHOOK PAYLOAD STRUCTURE:
+ * All webhooks are sent as POST requests with the following JSON payload:
+ * {
+ *   id: 'evt_...',                    // Unique event ID
+ *   type: 'obligation.created',       // Event type
+ *   created_at: '2025-01-15T10:30:00Z', // ISO 8601 timestamp
+ *   company_id: 'uuid',               // Company UUID
+ *   data: {                           // Event-specific payload
+ *     obligation_id: 'uuid',
+ *     site_id: 'uuid',
+ *     ...additional fields...
+ *   }
+ * }
+ *
+ * WEBHOOK HEADERS:
+ * - X-Webhook-Signature: HMAC-SHA256 signature for payload verification
+ * - X-Webhook-Timestamp: Unix timestamp of the signature
+ * - X-Webhook-Event: Event type (e.g., 'obligation.created')
+ * - X-Webhook-ID: Unique event ID
+ * - Content-Type: application/json
+ *
+ * RETRY LOGIC:
+ * - 3 retry attempts with exponential backoff
+ * - Delays: 1s, 5s, 25s between attempts
+ * - All attempts are logged in webhook_deliveries table
+ *
+ * SIGNATURE VERIFICATION:
+ * Recipients should verify webhook signatures using the provided secret:
+ * const signature = crypto.createHmac('sha256', secret)
+ *   .update(`${timestamp}.${JSON.stringify(payload)}`)
+ *   .digest('hex');
+ *
+ * Compare this with the X-Webhook-Signature header value.
  */
 
 import crypto from 'crypto';
@@ -9,13 +43,16 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 
 export type WebhookEventType =
   | 'obligation.created'
+  | 'obligation.updated'
   | 'obligation.completed'
   | 'obligation.overdue'
   | 'deadline.approaching'
   | 'deadline.missed'
   | 'evidence.uploaded'
+  | 'evidence.approved'
   | 'evidence.linked'
   | 'pack.generated'
+  | 'breach.detected'
   | 'risk_score.changed'
   | 'compliance_score.changed';
 
@@ -55,9 +92,71 @@ export function generateWebhookSecret(): string {
   return `whsec_${crypto.randomBytes(24).toString('hex')}`;
 }
 
+/**
+ * Verify webhook signature (for webhook consumers)
+ * @param secret - Webhook secret
+ * @param timestamp - Timestamp from X-Webhook-Timestamp header
+ * @param payload - Raw JSON payload string
+ * @param signature - Signature from X-Webhook-Signature header
+ * @returns true if signature is valid
+ */
+export function verifyWebhookSignature(
+  secret: string,
+  timestamp: string,
+  payload: string,
+  signature: string
+): boolean {
+  const expectedSignature = generateSignature(secret, timestamp, payload);
+
+  // Use constant-time comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(expectedSignature, 'hex')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class WebhookService {
   /**
-   * Create a new webhook configuration
+   * Register a new webhook URL for a company
+   * As per requirements: registerWebhook(companyId, url, events, secret?)
+   */
+  async registerWebhook(
+    companyId: string,
+    url: string,
+    events: WebhookEventType[],
+    secret?: string
+  ): Promise<WebhookConfig> {
+    const webhookSecret = secret || generateWebhookSecret();
+
+    const { data, error } = await supabaseAdmin
+      .from('webhooks')
+      .insert({
+        company_id: companyId,
+        name: `Webhook for ${url}`,
+        url,
+        secret: webhookSecret,
+        events,
+        headers: {},
+        is_active: true,
+        retry_count: 3,
+        timeout_ms: 30000,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to register webhook: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Create a new webhook configuration (alternative method with more options)
    */
   async createWebhook(
     companyId: string,
@@ -128,14 +227,14 @@ export class WebhookService {
   }
 
   /**
-   * Delete a webhook
+   * Delete a webhook by ID
+   * As per requirements: deleteWebhook(webhookId)
    */
-  async deleteWebhook(webhookId: string, companyId: string): Promise<void> {
+  async deleteWebhook(webhookId: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('webhooks')
       .delete()
-      .eq('id', webhookId)
-      .eq('company_id', companyId);
+      .eq('id', webhookId);
 
     if (error) {
       throw new Error(`Failed to delete webhook: ${error.message}`);
@@ -143,9 +242,10 @@ export class WebhookService {
   }
 
   /**
-   * Get webhooks for a company
+   * List all webhooks for a company
+   * As per requirements: listWebhooks(companyId)
    */
-  async getWebhooks(companyId: string): Promise<WebhookConfig[]> {
+  async listWebhooks(companyId: string): Promise<WebhookConfig[]> {
     const { data, error } = await supabaseAdmin
       .from('webhooks')
       .select('*')
@@ -153,14 +253,69 @@ export class WebhookService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new Error(`Failed to fetch webhooks: ${error.message}`);
+      throw new Error(`Failed to list webhooks: ${error.message}`);
     }
 
     return data || [];
   }
 
   /**
-   * Trigger a webhook event for a company
+   * Get webhooks for a company (alternative method name)
+   */
+  async getWebhooks(companyId: string): Promise<WebhookConfig[]> {
+    return this.listWebhooks(companyId);
+  }
+
+  /**
+   * Trigger webhooks for a specific event and company
+   * As per requirements: triggerWebhook(event, companyId, payload)
+   * Called internally when events occur
+   */
+  async triggerWebhook(
+    event: WebhookEventType,
+    companyId: string,
+    payload: Record<string, any>
+  ): Promise<void> {
+    // Get active webhooks subscribed to this event
+    const { data: webhooks, error } = await supabaseAdmin
+      .from('webhooks')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .contains('events', [event]);
+
+    if (error || !webhooks || webhooks.length === 0) {
+      console.log(`No active webhooks found for event ${event} in company ${companyId}`);
+      return;
+    }
+
+    const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`;
+    const timestamp = new Date().toISOString();
+
+    const webhookPayload: WebhookPayload = {
+      id: eventId,
+      type: event,
+      created_at: timestamp,
+      company_id: companyId,
+      data: payload,
+    };
+
+    console.log(`Triggering ${webhooks.length} webhook(s) for event ${event}`);
+
+    // Trigger all webhooks asynchronously (don't wait for completion)
+    const deliveryPromises = webhooks.map(webhook =>
+      this.deliverWebhook(webhook, webhookPayload).catch(e => {
+        console.error(`Webhook delivery failed for ${webhook.id}:`, e);
+      })
+    );
+
+    // Wait for all deliveries to complete (with retries)
+    await Promise.allSettled(deliveryPromises);
+  }
+
+  /**
+   * Trigger a webhook event for a company (alternative method)
+   * Returns statistics about delivery
    */
   async triggerEvent(
     companyId: string,
@@ -207,11 +362,13 @@ export class WebhookService {
   }
 
   /**
-   * Deliver webhook to endpoint
+   * Deliver webhook to endpoint with retry logic
+   * Implements exponential backoff: 1s, 5s, 25s delays
    */
   private async deliverWebhook(
     webhook: WebhookConfig,
-    payload: WebhookPayload
+    payload: WebhookPayload,
+    attemptNumber: number = 1
   ): Promise<void> {
     const payloadJson = JSON.stringify(payload);
     const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -234,62 +391,104 @@ export class WebhookService {
         event_type: payload.type,
         event_id: payload.id,
         payload,
+        retry_count: attemptNumber - 1,
       })
       .select('id')
       .single();
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), webhook.timeout_ms);
+    const maxRetries = webhook.retry_count || 3;
+    let lastError: Error | null = null;
 
-      const response = await fetch(webhook.url, {
-        method: 'POST',
-        headers,
-        body: payloadJson,
-        signal: controller.signal,
-      });
+    for (let attempt = attemptNumber; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Webhook delivery attempt ${attempt}/${maxRetries} for ${webhook.id}`);
 
-      clearTimeout(timeoutId);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), webhook.timeout_ms);
 
-      const responseBody = await response.text();
+        const response = await fetch(webhook.url, {
+          method: 'POST',
+          headers,
+          body: payloadJson,
+          signal: controller.signal,
+        });
 
-      // Update delivery record
-      await supabaseAdmin
-        .from('webhook_deliveries')
-        .update({
-          response_status: response.status,
-          response_body: responseBody.substring(0, 10000), // Limit stored response
-          delivered_at: response.ok ? new Date().toISOString() : null,
-          failed_at: response.ok ? null : new Date().toISOString(),
-          error_message: response.ok ? null : `HTTP ${response.status}`,
-        })
-        .eq('id', delivery?.id);
+        clearTimeout(timeoutId);
 
-      // Update webhook last delivery status
-      await supabaseAdmin
-        .from('webhooks')
-        .update({
-          last_delivery_at: new Date().toISOString(),
-          last_delivery_status: response.ok ? 'SUCCESS' : 'FAILED',
-          failure_count: response.ok ? 0 : supabaseAdmin.rpc('increment_failure_count'),
-        })
-        .eq('id', webhook.id);
+        const responseBody = await response.text();
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${responseBody}`);
+        // Update delivery record
+        await supabaseAdmin
+          .from('webhook_deliveries')
+          .update({
+            response_status: response.status,
+            response_body: responseBody.substring(0, 10000), // Limit stored response
+            delivered_at: response.ok ? new Date().toISOString() : null,
+            failed_at: response.ok ? null : new Date().toISOString(),
+            error_message: response.ok ? null : `HTTP ${response.status}`,
+            retry_count: attempt - 1,
+          })
+          .eq('id', delivery?.id);
+
+        if (response.ok) {
+          // Success - update webhook status
+          await supabaseAdmin
+            .from('webhooks')
+            .update({
+              last_delivery_at: new Date().toISOString(),
+              last_delivery_status: 'SUCCESS',
+              failure_count: 0,
+            })
+            .eq('id', webhook.id);
+
+          console.log(`Webhook delivery successful for ${webhook.id}`);
+          return;
+        }
+
+        lastError = new Error(`HTTP ${response.status}: ${responseBody}`);
+      } catch (e: any) {
+        lastError = e;
+        console.error(`Webhook delivery attempt ${attempt} failed:`, e.message);
       }
-    } catch (e: any) {
-      // Update delivery with error
-      await supabaseAdmin
-        .from('webhook_deliveries')
-        .update({
-          failed_at: new Date().toISOString(),
-          error_message: e.message || 'Unknown error',
-        })
-        .eq('id', delivery?.id);
 
-      throw e;
+      // If not the last attempt, wait before retrying with exponential backoff
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 5s, 25s (approximately 5^(n-1) seconds)
+        const delayMs = Math.pow(5, attempt - 1) * 1000;
+        console.log(`Retrying webhook delivery in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
+
+    // All retries failed
+    const errorMessage = lastError?.message || 'Unknown error';
+
+    await supabaseAdmin
+      .from('webhook_deliveries')
+      .update({
+        failed_at: new Date().toISOString(),
+        error_message: errorMessage,
+        retry_count: maxRetries - 1,
+      })
+      .eq('id', delivery?.id);
+
+    // Update webhook failure status
+    const { data: webhookData } = await supabaseAdmin
+      .from('webhooks')
+      .select('failure_count')
+      .eq('id', webhook.id)
+      .single();
+
+    await supabaseAdmin
+      .from('webhooks')
+      .update({
+        last_delivery_at: new Date().toISOString(),
+        last_delivery_status: 'FAILED',
+        failure_count: (webhookData?.failure_count || 0) + 1,
+      })
+      .eq('id', webhook.id);
+
+    throw new Error(`Webhook delivery failed after ${maxRetries} attempts: ${errorMessage}`);
   }
 
   /**

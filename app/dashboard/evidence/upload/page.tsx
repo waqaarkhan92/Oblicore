@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Upload, X, File, CheckCircle, AlertCircle, Smartphone, Monitor } from 'lucide-react';
+import { Upload, X, File, CheckCircle, AlertCircle, Smartphone, Monitor, ChevronDown, ChevronUp, Sparkles, Search } from 'lucide-react';
 import Link from 'next/link';
 import { MobileEvidenceUpload } from '@/components/enhanced-features';
 
@@ -15,6 +15,8 @@ interface Obligation {
   id: string;
   obligation_title: string;
   site_id: string;
+  category?: string;
+  keywords?: string[];
 }
 
 export default function EvidenceUploadPage() {
@@ -26,6 +28,9 @@ export default function EvidenceUploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [uploadMode, setUploadMode] = useState<'standard' | 'mobile'>('standard');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [suggestedObligations, setSuggestedObligations] = useState<string[]>([]);
 
   // Fetch obligations for multi-select
   const { data: obligationsData, isLoading: obligationsLoading } = useQuery<{
@@ -39,6 +44,79 @@ export default function EvidenceUploadPage() {
   });
 
   const obligations: any[] = obligationsData?.data || [];
+
+  // Auto-suggest obligations based on file name
+  const suggestObligationsFromFileName = useCallback((fileName: string) => {
+    if (!fileName || obligations.length === 0) return [];
+
+    const lowerFileName = fileName.toLowerCase();
+    const suggestions: string[] = [];
+
+    // Common evidence keywords to obligation categories mapping
+    const keywordMappings: Record<string, string[]> = {
+      'monitoring': ['MONITORING', 'monitor', 'sample', 'reading', 'measurement'],
+      'report': ['REPORTING', 'report', 'annual', 'quarterly', 'monthly'],
+      'maintenance': ['MAINTENANCE', 'maintain', 'service', 'repair', 'inspection'],
+      'record': ['RECORD_KEEPING', 'record', 'log', 'register', 'archive'],
+      'calibration': ['MONITORING', 'calibrat', 'certif'],
+      'emission': ['MONITORING', 'emission', 'discharge', 'effluent'],
+      'waste': ['OPERATIONAL', 'waste', 'disposal', 'consignment'],
+      'training': ['OPERATIONAL', 'training', 'competenc'],
+      'permit': ['OPERATIONAL', 'permit', 'licence', 'consent'],
+    };
+
+    for (const obligation of obligations) {
+      const title = (obligation.obligation_title || '').toLowerCase();
+      const category = obligation.category || '';
+
+      // Check for category match
+      for (const [keyword, mappings] of Object.entries(keywordMappings)) {
+        if (lowerFileName.includes(keyword)) {
+          if (mappings.some(m => title.includes(m.toLowerCase()) || category === m)) {
+            if (!suggestions.includes(obligation.id)) {
+              suggestions.push(obligation.id);
+            }
+          }
+        }
+      }
+
+      // Check for direct word matches in title
+      const fileWords = lowerFileName.replace(/[^a-z0-9]/g, ' ').split(' ').filter((w: string) => w.length > 3);
+      const titleWords = title.replace(/[^a-z0-9]/g, ' ').split(' ').filter((w: string) => w.length > 3);
+
+      for (const word of fileWords) {
+        if (titleWords.some((tw: string) => tw.includes(word) || word.includes(tw))) {
+          if (!suggestions.includes(obligation.id)) {
+            suggestions.push(obligation.id);
+          }
+        }
+      }
+    }
+
+    return suggestions.slice(0, 5); // Limit to 5 suggestions
+  }, [obligations]);
+
+  // Auto-suggest when file is selected
+  useEffect(() => {
+    if (selectedFile && obligations.length > 0) {
+      const suggestions = suggestObligationsFromFileName(selectedFile.name);
+      setSuggestedObligations(suggestions);
+
+      // Auto-select suggested if none already selected
+      if (selectedObligations.length === 0 && suggestions.length > 0) {
+        setSelectedObligations(suggestions);
+      }
+    }
+  }, [selectedFile, obligations, suggestObligationsFromFileName, selectedObligations.length]);
+
+  // Filter obligations by search term
+  const filteredObligations = useMemo(() => {
+    if (!searchTerm) return obligations;
+    const lowerSearch = searchTerm.toLowerCase();
+    return obligations.filter(
+      (o: Obligation) => (o.obligation_title || '').toLowerCase().includes(lowerSearch)
+    );
+  }, [obligations, searchTerm]);
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -314,12 +392,29 @@ export default function EvidenceUploadPage() {
 
         {/* Obligation Selection */}
         <div className="bg-white rounded-lg shadow-base p-6">
-          <h2 className="text-xl font-semibold text-text-primary mb-4">
-            Link to Obligations <span className="text-danger">*</span>
-          </h2>
-          <p className="text-sm text-text-secondary mb-4">
-            Select one or more obligations to link this evidence to
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-text-primary">
+              Link to Obligations <span className="text-danger">*</span>
+            </h2>
+            {suggestedObligations.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Auto-suggested from file name</span>
+              </div>
+            )}
+          </div>
+
+          {/* Search filter */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <Input
+              type="text"
+              placeholder="Search obligations..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
 
           {obligationsLoading ? (
             <div className="text-center py-8 text-text-secondary">Loading obligations...</div>
@@ -334,41 +429,80 @@ export default function EvidenceUploadPage() {
             </div>
           ) : (
             <div className="border border-input-border rounded-lg max-h-96 overflow-y-auto">
-              {obligations.map((obligation) => (
-                <label
-                  key={obligation.id}
-                  className="flex items-center gap-3 p-4 border-b border-input-border/50 last:border-b-0 hover:bg-background-tertiary cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedObligations.includes(obligation.id)}
-                    onChange={() => toggleObligation(obligation.id)}
-                    className="w-4 h-4 text-primary border-input-border rounded focus:ring-primary"
-                  />
-                  <span className="flex-1 text-text-primary">{obligation.obligation_title}</span>
-                </label>
-              ))}
+              {filteredObligations.map((obligation: Obligation) => {
+                const isSuggested = suggestedObligations.includes(obligation.id);
+                return (
+                  <label
+                    key={obligation.id}
+                    className={`flex items-center gap-3 p-4 border-b border-input-border/50 last:border-b-0 cursor-pointer transition-colors ${
+                      isSuggested ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-background-tertiary'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedObligations.includes(obligation.id)}
+                      onChange={() => toggleObligation(obligation.id)}
+                      className="w-4 h-4 text-primary border-input-border rounded focus:ring-primary"
+                    />
+                    <span className="flex-1 text-text-primary">{obligation.obligation_title}</span>
+                    {isSuggested && (
+                      <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full">
+                        Suggested
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+              {filteredObligations.length === 0 && searchTerm && (
+                <div className="p-4 text-center text-text-secondary">
+                  No obligations match "{searchTerm}"
+                </div>
+              )}
             </div>
           )}
 
           {selectedObligations.length > 0 && (
-            <div className="mt-4 p-3 bg-primary/10 rounded-lg">
+            <div className="mt-4 p-3 bg-primary/10 rounded-lg flex items-center justify-between">
               <p className="text-sm text-primary font-medium">
                 {selectedObligations.length} obligation{selectedObligations.length !== 1 ? 's' : ''} selected
               </p>
+              <button
+                type="button"
+                onClick={() => setSelectedObligations([])}
+                className="text-xs text-primary hover:underline"
+              >
+                Clear all
+              </button>
             </div>
           )}
         </div>
 
-        {/* Description */}
-        <div className="bg-white rounded-lg shadow-base p-6">
-          <h2 className="text-xl font-semibold text-text-primary mb-4">Description (Optional)</h2>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add a description or notes about this evidence..."
-            className="w-full min-h-[100px] rounded-lg border border-input-border px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
+        {/* Advanced Options - Progressive Disclosure */}
+        <div className="bg-white rounded-lg shadow-base overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+          >
+            <span className="font-medium text-text-primary">Additional Options</span>
+            {showAdvanced ? (
+              <ChevronUp className="h-5 w-5 text-text-tertiary" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-text-tertiary" />
+            )}
+          </button>
+
+          {showAdvanced && (
+            <div className="px-6 pb-6 border-t border-gray-100">
+              <h3 className="text-sm font-medium text-text-secondary mt-4 mb-2">Description (Optional)</h3>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a description or notes about this evidence..."
+                className="w-full min-h-[100px] rounded-lg border border-input-border px-4 py-3 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+          )}
         </div>
 
         {/* Upload Progress */}

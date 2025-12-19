@@ -7,6 +7,9 @@
 import { Job } from 'bullmq';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getAppUrl } from '@/lib/env';
+import { deadlineService } from '@/lib/services/deadline-service';
+import { evidenceService } from '@/lib/services/evidence-service';
+import { userService } from '@/lib/services/user-service';
 
 export interface DetectBreachesAndAlertsJobInput {
   company_id?: string;
@@ -20,41 +23,10 @@ export async function processDetectBreachesAndAlertsJob(
 
   try {
     // Step 1: Query breached deadlines (regulatory deadline passed)
-    let breachedQuery = supabaseAdmin
-      .from('deadlines')
-      .select(`
-        id,
-        obligation_id,
-        due_date,
-        status,
-        sla_target_date,
-        sla_breached_at,
-        breach_notification_sent,
-        obligations!inner(
-          id,
-          summary,
-          assigned_to,
-          site_id,
-          company_id,
-          sites!inner(id, site_name),
-          companies!inner(id, name)
-        )
-      `)
-      .eq('status', 'OVERDUE')
-      .lt('due_date', new Date().toISOString())
-      .eq('breach_notification_sent', false)
-      .order('due_date', { ascending: true })
-      .limit(batch_size);
-
-    if (company_id) {
-      breachedQuery = breachedQuery.eq('company_id', company_id);
-    }
-
-    const { data: breachedDeadlines, error: breachedError } = await breachedQuery;
-
-    if (breachedError) {
-      throw new Error(`Failed to fetch breached deadlines: ${breachedError.message}`);
-    }
+    const breachedDeadlines = await deadlineService.getBreached({
+      company_id,
+      limit: batch_size
+    });
 
     let notificationsCreated = 0;
     let deadlinesMarked = 0;
@@ -74,19 +46,7 @@ export async function processDetectBreachesAndAlertsJob(
           const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
 
           // Step 2: Check for missing evidence
-          const { data: evidenceLinks } = await supabaseAdmin
-            .from('obligation_evidence_links')
-            .select('evidence_id')
-            .eq('obligation_id', obligation.id);
-
-          const { data: approvedEvidence } = await supabaseAdmin
-            .from('evidence_items')
-            .select('id')
-            .in('id', (evidenceLinks || []).map((l: any) => l.evidence_id))
-            .eq('is_archived', false)
-            .eq('validation_status', 'APPROVED');
-
-          const hasEvidence = approvedEvidence && approvedEvidence.length > 0;
+          const hasEvidence = await evidenceService.hasApprovedEvidence(obligation.id);
 
           // Determine notification type
           const notificationType = hasEvidence
@@ -96,21 +56,15 @@ export async function processDetectBreachesAndAlertsJob(
           const severity = 'CRITICAL';
 
           // Get recipients (assignee + managers + admins)
-          const { data: assignee } = await supabaseAdmin
-            .from('users')
-            .select('id, email, full_name')
-            .eq('id', obligation.assigned_to)
-            .single();
+          const assignee = obligation.assigned_to
+            ? await userService.getById(obligation.assigned_to)
+            : null;
 
-          const { data: managers } = await supabaseAdmin
-            .from('users')
-            .select('id, email, full_name')
-            .eq('company_id', obligation.company_id)
-            .in('id', await getRoleUserIds(obligation.company_id, ['ADMIN', 'OWNER']));
+          const managers = await userService.getAdminsAndOwners(obligation.company_id);
 
           const recipients = [
             assignee,
-            ...(managers || [])
+            ...managers
           ].filter(Boolean);
 
           // Generate action URL
@@ -179,38 +133,10 @@ export async function processDetectBreachesAndAlertsJob(
     }
 
     // Step 5: Detect SLA misses (SLA target date passed)
-    let slaQuery = supabaseAdmin
-      .from('deadlines')
-      .select(`
-        id,
-        obligation_id,
-        sla_target_date,
-        sla_breached_at,
-        obligations!inner(
-          id,
-          summary,
-          site_id,
-          company_id,
-          sites!inner(id, site_name),
-          companies!inner(id, name)
-        )
-      `)
-      .not('sla_target_date', 'is', null)
-      .lt('sla_target_date', new Date().toISOString())
-      .is('sla_breached_at', null)
-      .neq('status', 'COMPLETED')
-      .order('sla_target_date', { ascending: true })
-      .limit(batch_size);
-
-    if (company_id) {
-      slaQuery = slaQuery.eq('company_id', company_id);
-    }
-
-    const { data: slaMisses, error: slaError } = await slaQuery;
-
-    if (slaError) {
-      console.error('Failed to fetch SLA misses:', slaError);
-    }
+    const slaMisses = await deadlineService.getSLABreached({
+      company_id,
+      limit: batch_size
+    });
 
     let slaNotificationsCreated = 0;
 
@@ -228,26 +154,16 @@ export async function processDetectBreachesAndAlertsJob(
           const slaBreachHours = Math.floor((now.getTime() - slaTargetDate.getTime()) / (1000 * 60 * 60));
 
           // Mark SLA as breached
-          await supabaseAdmin
-            .from('deadlines')
-            .update({
-              sla_breached_at: now.toISOString(),
-              sla_breach_duration_hours: 0,
-            })
-            .eq('id', deadline.id);
+          await deadlineService.markSLAAsBreached(deadline.id);
 
           // Get recipients
-          const { data: managers } = await supabaseAdmin
-            .from('users')
-            .select('id, email, full_name')
-            .eq('company_id', obligation.company_id)
-            .in('id', await getRoleUserIds(obligation.company_id, ['ADMIN', 'OWNER']));
+          const managers = await userService.getAdminsAndOwners(obligation.company_id);
 
           const baseUrl = getAppUrl();
           const actionUrl = `${baseUrl}/sites/${obligation.site_id}/obligations/${obligation.id}`;
 
           // Create SLA breach notifications
-          const slaNotifications = (managers || []).map((manager: any) => ({
+          const slaNotifications = managers.map((manager: any) => ({
             user_id: manager.id,
             company_id: obligation.company_id,
             site_id: obligation.site_id,
@@ -300,24 +216,5 @@ export async function processDetectBreachesAndAlertsJob(
     console.error('Error in breach detection job:', error);
     throw error;
   }
-}
-
-async function getRoleUserIds(companyId: string, roles: string[]): Promise<string[]> {
-  const { data: userRoles } = await supabaseAdmin
-    .from('user_roles')
-    .select('user_id')
-    .in('role', roles);
-
-  if (!userRoles) return [];
-
-  const userIds = userRoles.map((ur: any) => ur.user_id);
-
-  const { data: users } = await supabaseAdmin
-    .from('users')
-    .select('id')
-    .eq('company_id', companyId)
-    .in('id', userIds);
-
-  return users?.map((u: any) => u.id) || [];
 }
 

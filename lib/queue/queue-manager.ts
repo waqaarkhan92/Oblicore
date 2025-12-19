@@ -65,6 +65,8 @@ export const QUEUE_NAMES = {
   RISK_SCORE_CALCULATION: 'risk-score-calculation',
   // Review Queue Escalation
   REVIEW_QUEUE_ESCALATION: 'review-queue-escalation',
+  // AI Pattern Management
+  PATTERN_AUTO_APPROVAL: 'pattern-auto-approval',
 } as const;
 
 // Redis connection

@@ -16,6 +16,7 @@ import {
 } from '@/components/enhanced-features';
 import { Modal } from '@/components/ui/modal';
 import { CommentThread } from '@/components/comments/comment-thread';
+import { ExtractionExplanation, type ExtractionExplanationType } from '@/components/ai';
 
 interface Obligation {
   id: string;
@@ -32,6 +33,7 @@ interface Obligation {
   condition_reference?: string | null;
   page_reference?: number | null;
   evidence_count?: number;
+  extraction_explanation?: ExtractionExplanationType | null;
 }
 
 interface Evidence {
@@ -271,6 +273,16 @@ export default function ObligationDetailPage({
               </span>
             </div>
           </div>
+
+          {/* Extraction Explanation - Shows how obligation was extracted */}
+          {obligation.extraction_explanation && (
+            <div className="col-span-2">
+              <ExtractionExplanation
+                explanation={obligation.extraction_explanation}
+                className="mt-4"
+              />
+            </div>
+          )}
 
           {/* Deadline */}
           {obligation.deadline_date && (

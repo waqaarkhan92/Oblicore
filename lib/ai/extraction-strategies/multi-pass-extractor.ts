@@ -852,29 +852,66 @@ export class MultiPassExtractor {
    */
   private normalizeObligations(
     obligations: any[],
-    source: string
+    source: string,
+    extractionMeta?: {
+      model?: string;
+      pass?: number;
+      tokensUsed?: number;
+    }
   ): Obligation[] {
-    return obligations.map(obl => ({
-      condition_reference: obl.condition_reference || null,
-      title: obl.title || obl.summary || (obl.description || '').substring(0, 60),
-      description: obl.description || obl.text || '',
-      original_text: obl.original_text || null, // Grounding - verbatim quote from document
-      category: obl.category || 'OPERATIONAL',
-      frequency: obl.frequency || null,
-      deadline_date: obl.deadline_date || null,
-      deadline_relative: obl.deadline_relative || null,
-      is_improvement: obl.is_improvement || false,
-      is_subjective: obl.is_subjective || false,
-      condition_type: obl.condition_type || 'STANDARD',
-      confidence_score: obl.confidence_score || 0.7,
-      evidence_suggestions: obl.evidence_suggestions || [],
-      page_reference: obl.page_reference || null,
-      section_reference: obl.section_reference || null, // Section where this was found
-      elv_limit: obl.elv_limit || null,
-      metadata: obl.metadata || {},
-      _source: source,
-      _extracted_at: new Date().toISOString(),
-    }));
+    const passNumber = source === 'CONDITION' ? 1 : source === 'TABLE' ? 2 : source === 'IMPROVEMENT' ? 3 : source === 'ELV' ? 4 : 5;
+    const modelUsed = extractionMeta?.model || 'gpt-4o-mini';
+
+    return obligations.map(obl => {
+      const confidenceScore = obl.confidence_score || 0.7;
+      const hasOriginalText = !!obl.original_text;
+
+      // Determine hallucination risk based on confidence and grounding
+      let hallucinationRisk: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+      if (confidenceScore >= 0.85 && hasOriginalText) {
+        hallucinationRisk = 'LOW';
+      } else if (confidenceScore < 0.6 || !hasOriginalText) {
+        hallucinationRisk = 'HIGH';
+      }
+
+      return {
+        condition_reference: obl.condition_reference || null,
+        title: obl.title || obl.summary || (obl.description || '').substring(0, 60),
+        description: obl.description || obl.text || '',
+        original_text: obl.original_text || null, // Grounding - verbatim quote from document
+        category: obl.category || 'OPERATIONAL',
+        frequency: obl.frequency || null,
+        deadline_date: obl.deadline_date || null,
+        deadline_relative: obl.deadline_relative || null,
+        is_improvement: obl.is_improvement || false,
+        is_subjective: obl.is_subjective || false,
+        condition_type: obl.condition_type || 'STANDARD',
+        confidence_score: confidenceScore,
+        evidence_suggestions: obl.evidence_suggestions || [],
+        page_reference: obl.page_reference || null,
+        section_reference: obl.section_reference || null, // Section where this was found
+        elv_limit: obl.elv_limit || null,
+        metadata: obl.metadata || {},
+        _source: source,
+        _extracted_at: new Date().toISOString(),
+        // Add extraction explanation for transparency
+        extraction_explanation: {
+          source: 'LLM_EXTRACTION' as const, // All from LLM in multi-pass
+          llmExtraction: {
+            model: modelUsed,
+            pass: extractionMeta?.pass || passNumber,
+            tokensUsed: extractionMeta?.tokensUsed || 0,
+          },
+          groundingValidation: {
+            textFound: hasOriginalText,
+            pageNumber: obl.page_reference || undefined,
+            hallucinationRisk,
+          },
+          confidence: confidenceScore,
+          extractedAt: new Date().toISOString(),
+        },
+      };
+    });
   }
 
   /**

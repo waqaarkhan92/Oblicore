@@ -372,11 +372,9 @@ describe('detect-breaches-and-alerts-job', () => {
       expect(mockFromFn).toHaveBeenCalledWith('deadlines');
     });
 
-    it('should use ecocomply.io as default domain', async () => {
-      // The default domain should be ecocomply.io when no environment variable is set
-      // This is verified by checking the source code has the correct fallback
-      // We can't easily capture the notification data without a full mock chain,
-      // but we verify the job completes successfully
+    it('should use getAppUrl for action URLs (ecocomply.io fallback in lib/env.ts)', async () => {
+      // The job uses getAppUrl() from lib/env.ts which has APP_DOMAIN fallback
+      // Verify the job uses getAppUrl and that lib/env.ts has correct domain
       mockFromFn.mockReturnValueOnce(
         createBreachQueryMock({ data: [], error: null })
       );
@@ -387,11 +385,15 @@ describe('detect-breaches-and-alerts-job', () => {
       const mockJob = { data: {} };
       await expect(processDetectBreachesAndAlertsJob(mockJob as any)).resolves.not.toThrow();
 
-      // Verify the source code has the correct domain fallback
+      // Verify the job uses getAppUrl() for URLs
       const fs = require('fs');
-      const sourceCode = fs.readFileSync('lib/jobs/detect-breaches-and-alerts-job.ts', 'utf8');
-      expect(sourceCode).toContain('ecocomply.io');
-      expect(sourceCode).not.toContain('epcompliance.com');
+      const jobCode = fs.readFileSync('lib/jobs/detect-breaches-and-alerts-job.ts', 'utf8');
+      expect(jobCode).toContain('getAppUrl');
+
+      // Verify lib/env.ts has the correct ecocomply.io domain fallback
+      const envCode = fs.readFileSync('lib/env.ts', 'utf8');
+      expect(envCode).toContain('ecocomply.io');
+      expect(envCode).not.toContain('epcompliance.com');
     });
 
     it('should handle SLA query error gracefully', async () => {

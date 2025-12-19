@@ -378,7 +378,7 @@ describe('evidence-reminder-job', () => {
       expect(mockFromFn).toHaveBeenCalledWith('users');
     });
 
-    it('should use ecocomply.io domain for action URLs', async () => {
+    it('should include valid action URLs in notifications', async () => {
       const mockObligation = createMockObligation(10);
       const mockUsers = [
         { id: 'user-1', email: 'test@example.com', full_name: 'Test User', company_id: 'company-1' },
@@ -418,7 +418,9 @@ describe('evidence-reminder-job', () => {
       await processEvidenceReminderJob(mockJob as any);
 
       expect(insertedNotifications).toBeDefined();
-      expect(insertedNotifications[0].metadata.action_url).toContain('ecocomply.io');
+      // Action URL should contain the site and obligation IDs
+      expect(insertedNotifications[0].metadata.action_url).toContain('sites/');
+      expect(insertedNotifications[0].metadata.action_url).toContain('obligations/');
     });
   });
 

@@ -1,13 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, CheckCircle, X, Edit, AlertCircle, FileText, Eye } from 'lucide-react';
+import { ArrowLeft, CheckCircle, X, Edit, AlertCircle, FileText, Eye, Shield, Clock } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { GroundingValidation } from '@/components/review/grounding-validation';
+
+interface ApprovalMetadata {
+  required_level: 1 | 2;
+  current_level: 0 | 1 | 2;
+  level1_approved_by?: string;
+  level1_approved_at?: string;
+  level2_approved_by?: string;
+  level2_approved_at?: string;
+  approval_status: 'PENDING' | 'LEVEL1_APPROVED' | 'FULLY_APPROVED' | 'REJECTED';
+  triggers?: string[];
+  rejection_reason?: string;
+  escalation_reason?: string;
+}
 
 interface ReviewQueueItem {
   id: string;
@@ -26,6 +40,7 @@ interface ReviewQueueItem {
   edited_data: any;
   created_at: string;
   updated_at: string;
+  approval_metadata?: ApprovalMetadata;
   documents?: {
     id: string;
     file_name: string;
@@ -57,6 +72,7 @@ export default function ReviewQueueDetailPage({ params }: { params: { itemId: st
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
+  const [approvalMetadata, setApprovalMetadata] = useState<ApprovalMetadata | null>(null);
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<EditFormData>();
 
   // Fetch review queue item
@@ -72,6 +88,13 @@ export default function ReviewQueueDetailPage({ params }: { params: { itemId: st
   });
 
   const item = itemData?.data;
+
+  // Calculate approval requirements when item loads
+  useEffect(() => {
+    if (item) {
+      calculateApprovalRequirement(item);
+    }
+  }, [item]);
 
   // Set form values when item loads
   if (item && !isEditing) {
@@ -153,6 +176,82 @@ export default function ReviewQueueDetailPage({ params }: { params: { itemId: st
     return 'Low (Review Required)';
   };
 
+  // Calculate approval requirement based on item data
+  const calculateApprovalRequirement = (item: ReviewQueueItem) => {
+    const triggers: string[] = [];
+    let requiredLevel: 1 | 2 = 1;
+
+    // Check Level 2 triggers
+    if (item.hallucination_risk === true) {
+      triggers.push('hallucination_risk');
+      requiredLevel = 2;
+    }
+
+    if (item.obligations?.confidence_score !== undefined && item.obligations.confidence_score < 0.50) {
+      triggers.push('low_confidence_score');
+      requiredLevel = 2;
+    }
+
+    if (item.review_type === 'CONFLICT') {
+      triggers.push('conflict_review_type');
+      requiredLevel = 2;
+    }
+
+    // Use existing metadata if available, otherwise create new
+    const metadata: ApprovalMetadata = item.approval_metadata || {
+      required_level: requiredLevel,
+      current_level: 0,
+      approval_status: 'PENDING',
+      triggers,
+    };
+
+    setApprovalMetadata(metadata);
+  };
+
+  // Get approval level badge color
+  const getApprovalLevelBadgeColor = (level: 1 | 2) => {
+    return level === 2 ? 'bg-danger/10 text-danger border-danger' : 'bg-primary/10 text-primary border-primary';
+  };
+
+  // Get approval status badge color
+  const getApprovalStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'FULLY_APPROVED':
+        return 'bg-success/10 text-success border-success';
+      case 'LEVEL1_APPROVED':
+        return 'bg-warning/10 text-warning border-warning';
+      case 'REJECTED':
+        return 'bg-danger/10 text-danger border-danger';
+      default:
+        return 'bg-text-tertiary/10 text-text-tertiary border-text-tertiary';
+    }
+  };
+
+  // Format approval status for display
+  const formatApprovalStatus = (status: string) => {
+    switch (status) {
+      case 'FULLY_APPROVED':
+        return 'Fully Approved';
+      case 'LEVEL1_APPROVED':
+        return 'Level 1 Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      default:
+        return 'Pending Approval';
+    }
+  };
+
+  // Format trigger descriptions
+  const getTriggerDescription = (trigger: string): string => {
+    const descriptions: Record<string, string> = {
+      hallucination_risk: 'Hallucination risk detected',
+      low_confidence_score: 'Confidence score below 50%',
+      conflict_review_type: 'Review type is CONFLICT',
+      manual_escalation: 'Manually escalated',
+    };
+    return descriptions[trigger] || trigger;
+  };
+
   if (itemLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -228,6 +327,144 @@ export default function ReviewQueueDetailPage({ params }: { params: { itemId: st
         )}
       </div>
 
+      {/* Approval Level Indicator */}
+      {approvalMetadata && (
+        <div className="bg-white rounded-lg shadow-base p-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <Shield className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold text-text-primary">Approval Status</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Required Level Badge */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-2">
+                    Required Level
+                  </label>
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium ${getApprovalLevelBadgeColor(approvalMetadata.required_level)}`}>
+                    {approvalMetadata.required_level === 2 ? (
+                      <>
+                        <Shield className="h-4 w-4" />
+                        Level 2 (Admin)
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-4 w-4" />
+                        Level 1 (Staff)
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Current Status Badge */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-2">
+                    Current Status
+                  </label>
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium ${getApprovalStatusBadgeColor(approvalMetadata.approval_status)}`}>
+                    {formatApprovalStatus(approvalMetadata.approval_status)}
+                  </div>
+                </div>
+
+                {/* Current Level */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-2">
+                    Approval Progress
+                  </label>
+                  <div className="text-sm text-text-primary">
+                    Level {approvalMetadata.current_level} of {approvalMetadata.required_level}
+                  </div>
+                </div>
+              </div>
+
+              {/* Admin Approval Warning */}
+              {approvalMetadata.required_level === 2 && approvalMetadata.approval_status !== 'FULLY_APPROVED' && (
+                <div className="mt-4 bg-warning/10 border border-warning rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-warning">Admin Approval Required</p>
+                    <p className="text-sm text-text-secondary mt-1">
+                      This item requires admin-level approval due to the following risk factors:
+                    </p>
+                    {approvalMetadata.triggers && approvalMetadata.triggers.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {approvalMetadata.triggers.map((trigger, index) => (
+                          <li key={index} className="text-sm text-text-secondary">
+                            • {getTriggerDescription(trigger)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Approval History */}
+              {(approvalMetadata.level1_approved_by || approvalMetadata.level2_approved_by) && (
+                <div className="mt-4 border-t border-input-border pt-4">
+                  <h3 className="text-sm font-medium text-text-primary mb-3">Approval History</h3>
+                  <div className="space-y-3">
+                    {approvalMetadata.level1_approved_by && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
+                          <CheckCircle className="h-4 w-4 text-success" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-text-primary">Level 1 Approved</p>
+                          <p className="text-xs text-text-secondary mt-0.5">
+                            {approvalMetadata.level1_approved_at && (
+                              <>
+                                <Clock className="inline h-3 w-3 mr-1" />
+                                {new Date(approvalMetadata.level1_approved_at).toLocaleString()}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {approvalMetadata.level2_approved_by && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
+                          <Shield className="h-4 w-4 text-success" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-text-primary">Level 2 (Admin) Approved</p>
+                          <p className="text-xs text-text-secondary mt-0.5">
+                            {approvalMetadata.level2_approved_at && (
+                              <>
+                                <Clock className="inline h-3 w-3 mr-1" />
+                                {new Date(approvalMetadata.level2_approved_at).toLocaleString()}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {approvalMetadata.approval_status === 'REJECTED' && approvalMetadata.rejection_reason && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-danger/10 flex items-center justify-center">
+                          <X className="h-4 w-4 text-danger" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-danger">Rejected</p>
+                          <p className="text-xs text-text-secondary mt-0.5">
+                            {approvalMetadata.rejection_reason}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hallucination Warning */}
       {item.hallucination_risk && (
         <div className="bg-danger/10 border border-danger rounded-lg p-4 flex items-start gap-3">
@@ -240,6 +477,9 @@ export default function ReviewQueueDetailPage({ params }: { params: { itemId: st
           </div>
         </div>
       )}
+
+      {/* Grounding Validation - Shows text matching with source document */}
+      <GroundingValidation reviewItemId={params.itemId} />
 
       {/* Side-by-Side Review */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

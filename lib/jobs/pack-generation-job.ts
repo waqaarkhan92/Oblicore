@@ -18,6 +18,11 @@ import { env } from '@/lib/env';
 import PDFDocument from 'pdfkit';
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import type { ChartConfiguration } from 'chart.js';
+import { calculateSiteComplianceScore, getComplianceScoreColor, getComplianceScoreStatus } from '@/lib/services/compliance-score-service';
+import { financialImpactService, type FinancialImpactResult } from '@/lib/services/financial-impact-service';
+import { elvHeadroomService, type ELVSummary } from '@/lib/services/elv-headroom-service';
+import { sendEmail } from '@/lib/services/email-service';
+import { baseEmailTemplate } from '@/lib/templates/notification-templates';
 
 // ========================================================================
 // CHART RENDERING SETUP
@@ -47,6 +52,22 @@ export interface PackGenerationJobData {
     status?: string[];
     category?: string[];
   };
+  watermark?: WatermarkOptions;
+}
+
+/**
+ * Watermark Options Interface
+ * Configures PDF watermarking for pack generation
+ */
+export interface WatermarkOptions {
+  enabled: boolean;
+  text?: string;              // e.g., "CONFIDENTIAL" or recipient name
+  recipientName?: string;     // Optional recipient for personalized watermarks
+  expirationDate?: string;    // Optional expiration date to display
+  opacity?: number;           // Default 0.1 (very light)
+  angle?: number;             // Default -45 degrees
+  fontSize?: number;          // Default 48
+  color?: string;             // Default '#CCCCCC'
 }
 
 // Colors for RAG status
@@ -60,8 +81,160 @@ const COLORS = {
   WHITE: '#FFFFFF',
 };
 
+/**
+ * Send pack email distribution
+ * Creates download link with 7-day expiry and sends to specified recipients
+ */
+async function sendPackEmail(
+  packId: string,
+  recipientEmails: string[],
+  packType: string,
+  companyId: string
+): Promise<void> {
+  try {
+    if (!recipientEmails || recipientEmails.length === 0) {
+      console.log(`No recipient emails specified for pack ${packId}, skipping email distribution`);
+      return;
+    }
+
+    // Get the pack details
+    const { data: pack, error: packError } = await supabaseAdmin
+      .from('audit_packs')
+      .select('id, title, storage_path, generated_by')
+      .eq('id', packId)
+      .single();
+
+    if (packError || !pack) {
+      throw new Error(`Failed to get pack details: ${packError?.message || 'Pack not found'}`);
+    }
+
+    // Get company details for email branding
+    const { data: company } = await supabaseAdmin
+      .from('companies')
+      .select('name')
+      .eq('id', companyId)
+      .single();
+
+    const companyName = company?.name || 'EcoComply';
+
+    // Generate shared link token (crypto-random)
+    const crypto = await import('crypto');
+    const sharedLinkToken = crypto.randomBytes(32).toString('hex');
+
+    // Calculate expiry date (7 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    // Get base URL for download link
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.ecocomply.io';
+    const downloadUrl = `${baseUrl}/api/v1/packs/${packId}/download?token=${sharedLinkToken}`;
+
+    // Send email to each recipient
+    for (const recipientEmail of recipientEmails) {
+      try {
+        // Create distribution record BEFORE sending email
+        const { data: distribution, error: distError } = await supabaseAdmin
+          .from('pack_distributions')
+          .insert({
+            pack_id: packId,
+            distributed_to: recipientEmail,
+            distribution_method: 'EMAIL',
+            email_address: recipientEmail,
+            shared_link_token: sharedLinkToken,
+            expires_at: expiresAt.toISOString(),
+            delivery_status: 'PENDING',
+            distributed_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
+
+        if (distError) {
+          console.error(`Failed to create distribution record for ${recipientEmail}:`, distError);
+          continue;
+        }
+
+        // Prepare email content
+        const packTypeName = getPackTypeName(packType);
+        const subject = `${packTypeName} - ${pack.title}`;
+
+        const content = `
+          <h2 style="color: #026A67; margin-top: 0;">Pack Ready for Download</h2>
+          <p>Your <strong>${packTypeName}</strong> has been generated and is ready for download.</p>
+
+          <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0;"><strong>Pack Title:</strong> ${pack.title}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Type:</strong> ${packTypeName}</p>
+            <p style="margin: 0;"><strong>Expires:</strong> ${expiresAt.toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}</p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${downloadUrl}"
+               style="background-color: #026A67; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+              Download Pack
+            </a>
+          </div>
+
+          <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+            <strong>Note:</strong> This download link will expire in 7 days (${expiresAt.toLocaleDateString('en-GB')}).
+            Please download the pack before the expiry date.
+          </p>
+
+          <p style="font-size: 14px; color: #6b7280;">
+            If you have any questions or need assistance, please contact your compliance administrator.
+          </p>
+        `;
+
+        const html = baseEmailTemplate(content, companyName);
+
+        // Send the email
+        const emailResult = await sendEmail({
+          to: recipientEmail,
+          subject: subject,
+          html: html,
+        });
+
+        // Update distribution record with delivery status
+        if (emailResult.success) {
+          await supabaseAdmin
+            .from('pack_distributions')
+            .update({
+              delivery_status: 'SENT',
+              message_id: emailResult.messageId || null,
+              delivered_at: new Date().toISOString(),
+            })
+            .eq('id', distribution.id);
+
+          console.log(`Pack email sent successfully to ${recipientEmail} for pack ${packId}`);
+        } else {
+          await supabaseAdmin
+            .from('pack_distributions')
+            .update({
+              delivery_status: 'FAILED',
+              error_message: emailResult.error || 'Unknown error',
+            })
+            .eq('id', distribution.id);
+
+          console.error(`Failed to send pack email to ${recipientEmail}:`, emailResult.error);
+        }
+      } catch (error: any) {
+        console.error(`Error sending pack email to ${recipientEmail}:`, error);
+        // Continue with other recipients even if one fails
+      }
+    }
+
+    console.log(`Pack email distribution completed for pack ${packId} to ${recipientEmails.length} recipients`);
+  } catch (error: any) {
+    console.error(`Pack email distribution failed for pack ${packId}:`, error);
+    // Don't throw - email distribution failure shouldn't fail the entire pack generation
+  }
+}
+
 export async function processPackGenerationJob(job: Job<PackGenerationJobData>): Promise<void> {
-  const { pack_id, pack_type, company_id, site_id, document_id, date_range_start, date_range_end, filters } = job.data;
+  const { pack_id, pack_type, company_id, site_id, document_id, date_range_start, date_range_end, filters, watermark } = job.data;
 
   const generationStartTime = Date.now();
 
@@ -114,7 +287,7 @@ export async function processPackGenerationJob(job: Job<PackGenerationJobData>):
     await snapshotPackContents(pack_id, packData);
 
     // Generate PDF based on pack type
-    const pdfBuffer = await generatePackPDF(pack_type, packData, pack);
+    const pdfBuffer = await generatePackPDF(pack_type, packData, pack, watermark);
 
     // Upload to Supabase Storage
     const storagePath = await uploadPackToStorage(pack_id, pdfBuffer, pack_type);
@@ -162,6 +335,12 @@ export async function processPackGenerationJob(job: Job<PackGenerationJobData>):
 
     if (notifyError) {
       console.error(`Failed to create pack ready notification for ${pack_id}:`, notifyError);
+    }
+
+    // Send pack via email to distribution list if specified
+    if (pack.distribution_emails && pack.distribution_emails.length > 0) {
+      console.log(`Sending pack ${pack_id} to ${pack.distribution_emails.length} recipients via email`);
+      await sendPackEmail(pack_id, pack.distribution_emails, pack_type, company_id);
     }
 
     console.log(`Pack generation completed: ${pack_id} - ${pack_type}`);
@@ -369,6 +548,51 @@ async function collectPackData(
     permits = documentsData || [];
   }
 
+  // Get compliance scorecard data if we have a site
+  let scorecardData = null;
+  let previousScorecard = null;
+  if (siteId && (packType === 'AUDIT_PACK' || packType === 'REGULATOR_INSPECTION')) {
+    try {
+      scorecardData = await calculateSiteComplianceScore(siteId);
+
+      // Get previous period score for trend calculation
+      const { data: previousScore } = await supabaseAdmin
+        .from('sites')
+        .select('compliance_score, compliance_score_updated_at')
+        .eq('id', siteId)
+        .single();
+
+      if (previousScore && previousScore.compliance_score !== null) {
+        previousScorecard = {
+          score: previousScore.compliance_score,
+          updated_at: previousScore.compliance_score_updated_at,
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching scorecard data:', error);
+    }
+  }
+
+  // Get financial impact data for REGULATOR and INSURER packs
+  let financialImpact: FinancialImpactResult | null = null;
+  if (packType === 'REGULATOR_INSPECTION' || packType === 'INSURER_BROKER' || packType === 'BOARD_MULTI_SITE_RISK') {
+    try {
+      financialImpact = await financialImpactService.generateFinancialImpact(companyId, siteId);
+    } catch (error) {
+      console.error('Error fetching financial impact data:', error);
+    }
+  }
+
+  // Get ELV headroom data for REGULATOR packs (Module 3 MCPD data)
+  let elvSummary: ELVSummary | null = null;
+  if (siteId && (packType === 'REGULATOR_INSPECTION' || packType === 'AUDIT_PACK')) {
+    try {
+      elvSummary = await elvHeadroomService.getSiteELVSummary(siteId);
+    } catch (error) {
+      console.error('Error fetching ELV headroom data:', error);
+    }
+  }
+
   return {
     company,
     site,
@@ -378,6 +602,10 @@ async function collectPackData(
     incidents,
     permits,
     packType,
+    scorecardData,
+    previousScorecard,
+    financialImpact,
+    elvSummary,
     dateRange: {
       start: dateRangeStart,
       end: dateRangeEnd,
@@ -386,9 +614,90 @@ async function collectPackData(
 }
 
 /**
+ * Apply Watermark to PDF Document
+ * Adds a subtle diagonal watermark to every page of the document
+ *
+ * @param doc - PDFKit document instance
+ * @param options - Watermark configuration options
+ */
+function applyWatermark(doc: PDFKit.PDFDocument, options: WatermarkOptions): void {
+  if (!options.enabled) {
+    return;
+  }
+
+  // Default values
+  const opacity = options.opacity ?? 0.1;
+  const angle = options.angle ?? -45;
+  const fontSize = options.fontSize ?? 48;
+  const color = options.color ?? '#CCCCCC';
+
+  // Build watermark text
+  let watermarkText = options.text || 'CONFIDENTIAL';
+
+  // Add recipient name if provided
+  if (options.recipientName) {
+    watermarkText += `\n${options.recipientName}`;
+  }
+
+  // Add expiration date if provided
+  if (options.expirationDate) {
+    watermarkText += `\nExpires: ${options.expirationDate}`;
+  }
+
+  // Save the current state
+  doc.save();
+
+  // Get page dimensions
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+
+  // Calculate center position
+  const centerX = pageWidth / 2;
+  const centerY = pageHeight / 2;
+
+  // Move to center and rotate
+  doc.translate(centerX, centerY);
+  doc.rotate(angle, { origin: [0, 0] });
+
+  // Apply watermark styling
+  doc.fillColor(color, opacity);
+  doc.fontSize(fontSize);
+  doc.font('Helvetica-Bold');
+
+  // Draw the watermark text centered
+  doc.text(watermarkText, -200, -30, {
+    width: 400,
+    align: 'center',
+    lineGap: 10,
+  });
+
+  // Restore the previous state
+  doc.restore();
+}
+
+/**
+ * Apply Watermark to All Pages
+ * Iterates through all pages in the document and applies the watermark
+ *
+ * @param doc - PDFKit document instance with bufferPages enabled
+ * @param options - Watermark configuration options
+ */
+function applyWatermarkToAllPages(doc: PDFKit.PDFDocument, options: WatermarkOptions): void {
+  if (!options.enabled) {
+    return;
+  }
+
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(i);
+    applyWatermark(doc, options);
+  }
+}
+
+/**
  * Generate PDF based on pack type
  */
-async function generatePackPDF(packType: string, packData: any, pack: any): Promise<Buffer> {
+async function generatePackPDF(packType: string, packData: any, pack: any, watermarkOptions?: WatermarkOptions): Promise<Buffer> {
   return new Promise(async (resolve, reject) => {
     const doc = new PDFDocument({
       margin: 50,
@@ -474,6 +783,13 @@ async function generatePackPDF(packType: string, packData: any, pack: any): Prom
     // Note: PDFKit doesn't support easy TOC insertion, so we generate it at the end
     // For a production system, consider using a PDF library that supports page insertion
 
+    // ========================================================================
+    // APPLY WATERMARK TO ALL PAGES (if enabled)
+    // ========================================================================
+    if (watermarkOptions && watermarkOptions.enabled) {
+      applyWatermarkToAllPages(doc, watermarkOptions);
+    }
+
     doc.end();
   });
 }
@@ -531,96 +847,252 @@ async function renderCoverPage(doc: PDFKit.PDFDocument, packType: string, packDa
 
 /**
  * Render Executive Summary with RAG Dashboard
+ * ENHANCED VERSION: Creates a "wow factor" one-pager with hero compliance score
  */
 async function renderExecutiveSummary(doc: PDFKit.PDFDocument, packType: string, packData: any): Promise<void> {
   doc.fontSize(20).fillColor(COLORS.BLACK).text('Executive Summary', 50, 50);
   doc.moveDown();
 
-  // Calculate key metrics
+  // ========================================================================
+  // SECTION 1: HERO - LARGE COMPLIANCE SCORE DISPLAY
+  // ========================================================================
+  const scoreData = packData.scorecardData;
+  const previousScore = packData.previousScorecard;
+
+  // Calculate compliance score (0-100)
+  let complianceScore = 0;
+  if (scoreData && scoreData.score !== undefined) {
+    complianceScore = scoreData.score;
+  } else {
+    // Fallback calculation if scorecard service not available
+    const totalObligations = packData.obligations.length;
+    const completedObligations = packData.obligations.filter((o: any) => o.status === 'COMPLETED').length;
+    const overdueObligations = packData.obligations.filter((o: any) => o.status === 'OVERDUE').length;
+    const completionRate = totalObligations > 0 ? (completedObligations / totalObligations) * 100 : 0;
+    const overduePenalty = totalObligations > 0 ? (overdueObligations / totalObligations) * 100 : 0;
+    complianceScore = Math.max(0, Math.min(100, completionRate * 0.7 + (100 - overduePenalty) * 0.3));
+  }
+
+  // Determine RAG status color
+  const ragColor = complianceScore >= 90 ? COLORS.GREEN : complianceScore >= 70 ? COLORS.AMBER : COLORS.RED;
+  const ragStatus = complianceScore >= 90 ? 'GREEN' : complianceScore >= 70 ? 'AMBER' : 'RED';
+  const statusText = complianceScore >= 90 ? 'Compliant' : complianceScore >= 70 ? 'Needs Attention' : 'Critical';
+
+  // Calculate trend (arrow and percentage change)
+  let trendArrow = '→';
+  let trendText = 'Stable';
+  let trendColor = COLORS.GRAY;
+  let trendPercentage = 0;
+
+  if (previousScore && previousScore.score !== null && previousScore.score !== complianceScore) {
+    trendPercentage = complianceScore - previousScore.score;
+    if (trendPercentage > 0) {
+      trendArrow = '↑';
+      trendText = 'Improving';
+      trendColor = COLORS.GREEN;
+    } else if (trendPercentage < 0) {
+      trendArrow = '↓';
+      trendText = 'Declining';
+      trendColor = COLORS.RED;
+    }
+  }
+
+  // Draw hero compliance score - Circular gauge with large number
+  const gaugeX = 130;
+  const gaugeY = 130;
+  const gaugeRadius = 70;
+
+  // Outer circle (background)
+  doc.circle(gaugeX, gaugeY, gaugeRadius).lineWidth(12).stroke('#E5E7EB');
+
+  // Score arc (colored based on RAG status)
+  const scoreAngle = (complianceScore / 100) * 360;
+  doc.circle(gaugeX, gaugeY, gaugeRadius)
+    .lineWidth(12)
+    .stroke(ragColor);
+
+  // Inner fill circle with RAG color
+  doc.circle(gaugeX, gaugeY, gaugeRadius - 10).fill(ragColor);
+
+  // Large score number (white text on colored background)
+  doc.fontSize(72).fillColor(COLORS.WHITE)
+    .text(Math.round(complianceScore).toString(), gaugeX - 60, gaugeY - 35, {
+      width: 120,
+      align: 'center',
+    });
+
+  // "Score" label below number
+  doc.fontSize(14).fillColor(COLORS.WHITE)
+    .text('SCORE', gaugeX - 60, gaugeY + 15, {
+      width: 120,
+      align: 'center',
+    });
+
+  // Status text below gauge
+  doc.fontSize(16).fillColor(ragColor)
+    .text(statusText, gaugeX - 60, gaugeY + gaugeRadius + 15, {
+      width: 120,
+      align: 'center',
+    });
+
+  // ========================================================================
+  // SECTION 2: ENHANCED RAG TRAFFIC LIGHT (with text labels)
+  // ========================================================================
+  const ragX = doc.page.width - 150;
+  const ragY = 90;
+
+  // Traffic light background
+  doc.roundedRect(ragX, ragY, 100, 150, 10).fill('#333333');
+
+  // Red light
+  doc.circle(ragX + 50, ragY + 25, 15).fill(ragStatus === 'RED' ? COLORS.RED : '#555555');
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Critical', ragX, ragY + 45, { width: 100, align: 'center' });
+
+  // Amber light
+  doc.circle(ragX + 50, ragY + 70, 15).fill(ragStatus === 'AMBER' ? COLORS.AMBER : '#555555');
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Attention', ragX, ragY + 90, { width: 100, align: 'center' });
+
+  // Green light
+  doc.circle(ragX + 50, ragY + 115, 15).fill(ragStatus === 'GREEN' ? COLORS.GREEN : '#555555');
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Compliant', ragX, ragY + 135, { width: 100, align: 'center' });
+
+  // ========================================================================
+  // SECTION 3: TREND INDICATOR (arrow + percentage change)
+  // ========================================================================
+  const trendX = 280;
+  const trendY = 120;
+
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Trend', trendX, trendY);
+  doc.fontSize(48).fillColor(trendColor).text(trendArrow, trendX, trendY + 20);
+  doc.fontSize(12).fillColor(trendColor).text(trendText, trendX, trendY + 75);
+
+  if (trendPercentage !== 0) {
+    const sign = trendPercentage > 0 ? '+' : '';
+    doc.fontSize(11).fillColor(trendColor)
+      .text(`${sign}${trendPercentage.toFixed(1)}%`, trendX, trendY + 92);
+  }
+
+  // ========================================================================
+  // SECTION 4: CCS BAND BADGE (for REGULATOR_INSPECTION packs)
+  // ========================================================================
+  if (packType === 'REGULATOR_INSPECTION' && packData.ccsAssessment) {
+    const ccsX = 400;
+    const ccsY = 90;
+    const ccsBandColor = getCCSBandColor(packData.ccsAssessment.compliance_band);
+
+    // Large prominent badge
+    doc.roundedRect(ccsX, ccsY, 120, 100, 10).fill(ccsBandColor);
+    doc.fontSize(14).fillColor(COLORS.WHITE).text('CCS Band', ccsX + 10, ccsY + 15, {
+      width: 100,
+      align: 'center',
+    });
+    doc.fontSize(56).fillColor(COLORS.WHITE).text(
+      packData.ccsAssessment.compliance_band || 'N/A',
+      ccsX + 10,
+      ccsY + 35,
+      { width: 100, align: 'center' }
+    );
+  }
+
+  // ========================================================================
+  // SECTION 5: KEY METRICS CARDS (compact row)
+  // ========================================================================
+  const metricsY = 270;
+  const cardWidth = 110;
+  const cardGap = 12;
+
   const totalObligations = packData.obligations.length;
   const completedObligations = packData.obligations.filter((o: any) => o.status === 'COMPLETED').length;
   const overdueObligations = packData.obligations.filter((o: any) => o.status === 'OVERDUE').length;
-  const pendingObligations = packData.obligations.filter((o: any) => o.status === 'PENDING' || o.status === 'IN_PROGRESS').length;
   const obligationsWithEvidence = packData.obligations.filter((o: any) => o.evidence && o.evidence.length > 0).length;
-
   const completionRate = totalObligations > 0 ? (completedObligations / totalObligations) * 100 : 0;
-  const overdueRate = totalObligations > 0 ? (overdueObligations / totalObligations) * 100 : 0;
   const evidenceCoverage = totalObligations > 0 ? (obligationsWithEvidence / totalObligations) * 100 : 0;
 
-  // Overall RAG Status
-  let overallStatus: 'GREEN' | 'AMBER' | 'RED';
-  if (overdueRate > 10 || completionRate < 50) {
-    overallStatus = 'RED';
-  } else if (overdueRate > 5 || completionRate < 80) {
-    overallStatus = 'AMBER';
-  } else {
-    overallStatus = 'GREEN';
-  }
-
-  // RAG Traffic Light
-  const ragX = doc.page.width - 150;
-  const ragY = 50;
-
-  // Traffic light background
-  doc.roundedRect(ragX, ragY, 100, 120, 10).fill('#333333');
-
-  // Red light
-  doc.circle(ragX + 50, ragY + 25, 15).fill(overallStatus === 'RED' ? COLORS.RED : '#555555');
-  // Amber light
-  doc.circle(ragX + 50, ragY + 60, 15).fill(overallStatus === 'AMBER' ? COLORS.AMBER : '#555555');
-  // Green light
-  doc.circle(ragX + 50, ragY + 95, 15).fill(overallStatus === 'GREEN' ? COLORS.GREEN : '#555555');
-
-  // Status label
-  doc.fontSize(12).fillColor(COLORS.BLACK).text('Overall Status', ragX, ragY + 130, { width: 100, align: 'center' });
-  doc.fontSize(10).text(overallStatus === 'GREEN' ? 'Compliant' : overallStatus === 'AMBER' ? 'Attention Needed' : 'Critical', ragX, ragY + 145, { width: 100, align: 'center' });
-
-  // Key Metrics Cards
-  const cardY = 200;
-  const cardWidth = 120;
-  const cardGap = 15;
-
   // Total Obligations
-  renderMetricCard(doc, 50, cardY, cardWidth, 'Total Obligations', totalObligations.toString(), COLORS.BLUE);
+  renderMetricCard(doc, 50, metricsY, cardWidth, 'Total Obligations', totalObligations.toString(), COLORS.BLUE);
 
   // Completed
-  renderMetricCard(doc, 50 + cardWidth + cardGap, cardY, cardWidth, 'Completed', `${completedObligations} (${completionRate.toFixed(0)}%)`, COLORS.GREEN);
+  renderMetricCard(doc, 50 + cardWidth + cardGap, metricsY, cardWidth, 'Completed', `${completedObligations} (${completionRate.toFixed(0)}%)`, COLORS.GREEN);
 
   // Overdue
-  renderMetricCard(doc, 50 + (cardWidth + cardGap) * 2, cardY, cardWidth, 'Overdue', `${overdueObligations}`, overdueObligations > 0 ? COLORS.RED : COLORS.GREEN);
+  renderMetricCard(doc, 50 + (cardWidth + cardGap) * 2, metricsY, cardWidth, 'Overdue', `${overdueObligations}`, overdueObligations > 0 ? COLORS.RED : COLORS.GREEN);
 
   // Evidence Coverage
-  renderMetricCard(doc, 50 + (cardWidth + cardGap) * 3, cardY, cardWidth, 'Evidence Coverage', `${evidenceCoverage.toFixed(0)}%`, evidenceCoverage > 80 ? COLORS.GREEN : evidenceCoverage > 50 ? COLORS.AMBER : COLORS.RED);
+  renderMetricCard(doc, 50 + (cardWidth + cardGap) * 3, metricsY, cardWidth, 'Evidence', `${evidenceCoverage.toFixed(0)}%`, evidenceCoverage > 80 ? COLORS.GREEN : evidenceCoverage > 50 ? COLORS.AMBER : COLORS.RED);
 
-  // Top 3 Risks Section
-  doc.fontSize(14).fillColor(COLORS.BLACK).text('Top Risks Requiring Attention', 50, 320);
+  // ========================================================================
+  // SECTION 6: TOP 3 ACTIONS (Enhanced with deadlines and urgency coding)
+  // ========================================================================
+  doc.fontSize(16).fillColor(COLORS.BLACK).text('Priority Actions', 50, 365);
   doc.moveDown(0.5);
 
+  // Get top 3 most critical obligations
+  const now = new Date();
   const riskyObligations = packData.obligations
-    .filter((o: any) => o.status === 'OVERDUE' || o.status === 'DUE_SOON' || (o.evidence && o.evidence.length === 0))
+    .filter((o: any) => o.status === 'OVERDUE' || o.status === 'DUE_SOON' || o.status === 'PENDING')
+    .map((o: any) => {
+      const deadline = o.deadline_date ? new Date(o.deadline_date) : null;
+      const daysUntilDeadline = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+      return { ...o, daysUntilDeadline };
+    })
+    .sort((a: any, b: any) => a.daysUntilDeadline - b.daysUntilDeadline)
     .slice(0, 3);
 
   if (riskyObligations.length > 0) {
     for (let i = 0; i < riskyObligations.length; i++) {
       const risk = riskyObligations[i];
-      const riskColor = risk.status === 'OVERDUE' ? COLORS.RED : COLORS.AMBER;
+      const urgencyColor = risk.status === 'OVERDUE' || risk.daysUntilDeadline < 0
+        ? COLORS.RED
+        : risk.daysUntilDeadline <= 7
+        ? COLORS.AMBER
+        : COLORS.BLUE;
 
-      doc.circle(55, doc.y + 5, 5).fill(riskColor);
-      doc.fontSize(10).fillColor(COLORS.BLACK).text(
-        `${risk.obligation_title || risk.original_text?.substring(0, 50) || 'Obligation'} - ${risk.status}`,
-        70, doc.y - 5
+      // Priority number badge
+      doc.roundedRect(50, doc.y, 25, 25, 5).fill(urgencyColor);
+      doc.fontSize(14).fillColor(COLORS.WHITE).text(`${i + 1}`, 50, doc.y - 25, {
+        width: 25,
+        align: 'center',
+      });
+
+      // Obligation title
+      doc.fontSize(11).fillColor(COLORS.BLACK).text(
+        risk.obligation_title || risk.original_text?.substring(0, 70) || 'Obligation',
+        85,
+        doc.y - 25,
+        { width: doc.page.width - 150 }
       );
-      if (risk.condition_reference) {
-        doc.fontSize(8).fillColor(COLORS.GRAY).text(`Ref: ${risk.condition_reference}`, 70);
+
+      // Deadline with urgency indicator
+      const currentY = doc.y;
+      if (risk.deadline_date) {
+        const deadlineText = risk.daysUntilDeadline < 0
+          ? `OVERDUE by ${Math.abs(risk.daysUntilDeadline)} days`
+          : risk.daysUntilDeadline === 0
+          ? 'DUE TODAY'
+          : `Due in ${risk.daysUntilDeadline} days (${risk.deadline_date})`;
+
+        doc.fontSize(9).fillColor(urgencyColor).text(deadlineText, 85, currentY);
       }
-      doc.moveDown(0.5);
+
+      // Condition reference
+      if (risk.condition_reference) {
+        doc.fontSize(8).fillColor(COLORS.GRAY).text(
+          `Ref: ${risk.condition_reference}`,
+          85,
+          doc.y + 2
+        );
+      }
+
+      doc.moveDown(0.8);
     }
   } else {
-    doc.fontSize(10).fillColor(COLORS.GREEN).text('No critical risks identified', 70);
+    doc.fontSize(11).fillColor(COLORS.GREEN).text('✓ No urgent actions required - All obligations on track', 85);
   }
 
-  // Category Breakdown
-  doc.fontSize(14).fillColor(COLORS.BLACK).text('Obligations by Category', 50, 450);
+  // ========================================================================
+  // SECTION 7: CATEGORY BREAKDOWN (compact visualization)
+  // ========================================================================
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Obligations by Category', 50, 530);
   doc.moveDown(0.5);
 
   const categories: Record<string, number> = {};
@@ -631,11 +1103,13 @@ async function renderExecutiveSummary(doc: PDFKit.PDFDocument, packType: string,
   let categoryY = doc.y;
   Object.entries(categories).forEach(([category, count]) => {
     const percentage = totalObligations > 0 ? (count / totalObligations) * 100 : 0;
-    renderProgressBar(doc, 50, categoryY, 300, category, percentage);
-    categoryY += 25;
+    renderProgressBar(doc, 50, categoryY, 350, category, percentage);
+    categoryY += 22;
   });
 
-  // First-Year Mode Notice with detailed adjustments
+  // ========================================================================
+  // First-Year Mode Notice (if applicable)
+  // ========================================================================
   const firstYearMode = getFirstYearModeAdjustments(packData);
   if (firstYearMode.isActive) {
     doc.addPage();
@@ -775,6 +1249,12 @@ async function renderRegulatorPack(doc: PDFKit.PDFDocument, packData: any, pack:
 
   doc.addPage();
   currentPage++;
+
+  // Financial Impact Assessment (Phase 2.2)
+  currentPage = await renderFinancialImpactSection(doc, packData, sections, currentPage);
+
+  // ELV Headroom Analysis (Phase 2.3 - Module 3 MCPD data)
+  currentPage = await renderELVHeadroomSection(doc, packData, sections, currentPage);
 
   // Obligations with Permit Citations
   currentPage = await renderObligationsSection(doc, packData, sections, currentPage, true);
@@ -1180,6 +1660,9 @@ async function renderInsurerPack(doc: PDFKit.PDFDocument, packData: any, pack: a
   doc.addPage();
   currentPage++;
 
+  // Financial Impact Assessment (Phase 2.2) - Critical for insurers
+  currentPage = await renderFinancialImpactSection(doc, packData, sections, currentPage);
+
   // Obligations
   currentPage = await renderObligationsSection(doc, packData, sections, currentPage, false);
 
@@ -1216,6 +1699,9 @@ async function renderAuditPack(doc: PDFKit.PDFDocument, packData: any, pack: any
 
   // Evidence
   currentPage = await renderEvidenceSection(doc, packData, pack, sections, currentPage);
+
+  // ELV Headroom Analysis (Phase 2.3 - Module 3 MCPD data)
+  currentPage = await renderELVHeadroomSection(doc, packData, sections, currentPage);
 
   // Change History
   currentPage = await renderChangeHistorySection(doc, packData, pack, sections, currentPage);
@@ -2063,6 +2549,274 @@ async function renderTableOfContents(
     );
     doc.moveDown(0.3);
   }
+}
+
+/**
+ * Render Financial Impact Section
+ * Shows fine exposure, remediation costs, and insurance risk assessment
+ */
+async function renderFinancialImpactSection(
+  doc: PDFKit.PDFDocument,
+  packData: any,
+  sections: any[],
+  currentPage: number
+): Promise<number> {
+  const financialImpact = packData.financialImpact;
+
+  if (!financialImpact) {
+    return currentPage;
+  }
+
+  sections.push({ title: 'Financial Impact Assessment', page: currentPage });
+  doc.fontSize(18).fillColor(COLORS.BLACK).text('Financial Impact Assessment', 50, 50);
+  doc.moveDown();
+
+  doc.fontSize(9).fillColor(COLORS.GRAY).text(
+    'This section provides an estimate of potential financial exposure based on current compliance status. Figures are indicative and based on typical UK regulatory enforcement actions.',
+    { width: doc.page.width - 100 }
+  );
+  doc.moveDown(1.5);
+
+  // Fine Exposure Section
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Potential Fine Exposure');
+  doc.moveDown(0.5);
+
+  const fineTotal = financialImpact.fineExposure?.total || 0;
+  const fineColor = fineTotal > 100000 ? COLORS.RED : fineTotal > 50000 ? COLORS.AMBER : COLORS.GREEN;
+
+  // Total Fine Exposure Box
+  doc.roundedRect(50, doc.y, 200, 60, 5).fill(fineColor);
+  doc.fontSize(12).fillColor(COLORS.WHITE).text('Total Estimated Fine Exposure', 60, doc.y + 10);
+  doc.fontSize(24).text(`£${fineTotal.toLocaleString()}`, 60, doc.y + 30);
+  doc.moveDown(4);
+
+  // Fine breakdown table
+  if (financialImpact.fineExposure?.breakdown && financialImpact.fineExposure.breakdown.length > 0) {
+    doc.fontSize(11).fillColor(COLORS.BLACK).text('Breakdown by Obligation:');
+    doc.moveDown(0.5);
+
+    // Table header
+    const tableTop = doc.y;
+    const colWidths = [180, 80, 80, 80];
+    doc.fontSize(8).fillColor(COLORS.WHITE);
+    doc.rect(50, tableTop, colWidths.reduce((a, b) => a + b, 0), 18).fill(COLORS.BLACK);
+    doc.text('Obligation', 55, tableTop + 5);
+    doc.text('Max Fine', 55 + colWidths[0], tableTop + 5);
+    doc.text('Likelihood', 55 + colWidths[0] + colWidths[1], tableTop + 5);
+    doc.text('Est. Fine', 55 + colWidths[0] + colWidths[1] + colWidths[2], tableTop + 5);
+
+    let rowY = tableTop + 18;
+    doc.fillColor(COLORS.BLACK);
+
+    // Show top 5 exposures
+    const topExposures = financialImpact.fineExposure.breakdown.slice(0, 5);
+    for (const item of topExposures) {
+      const likelihoodColor = item.likelihood === 'HIGH' ? COLORS.RED : item.likelihood === 'MEDIUM' ? COLORS.AMBER : COLORS.GREEN;
+
+      doc.fontSize(8);
+      doc.text((item.obligationTitle || 'Unknown').substring(0, 30), 55, rowY + 3);
+      doc.text(`£${item.maxFine.toLocaleString()}`, 55 + colWidths[0], rowY + 3);
+      doc.fillColor(likelihoodColor).text(item.likelihood, 55 + colWidths[0] + colWidths[1], rowY + 3);
+      doc.fillColor(COLORS.BLACK).text(`£${item.estimatedFine.toLocaleString()}`, 55 + colWidths[0] + colWidths[1] + colWidths[2], rowY + 3);
+
+      rowY += 16;
+    }
+    doc.y = rowY + 10;
+  }
+
+  doc.moveDown();
+
+  // Remediation Cost Section
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Estimated Remediation Costs');
+  doc.moveDown(0.5);
+
+  const remediationTotal = financialImpact.remediationCost?.total || 0;
+
+  doc.roundedRect(270, doc.y - 50, 200, 60, 5).stroke(COLORS.BLUE);
+  doc.fontSize(12).fillColor(COLORS.BLUE).text('Total Remediation Cost', 280, doc.y - 40);
+  doc.fontSize(24).text(`£${remediationTotal.toLocaleString()}`, 280, doc.y - 20);
+  doc.moveDown(3);
+
+  // Cost by category
+  if (financialImpact.remediationCost?.byCategory) {
+    doc.fontSize(10).fillColor(COLORS.BLACK).text('Cost by Category:');
+    doc.moveDown(0.3);
+
+    for (const [category, cost] of Object.entries(financialImpact.remediationCost.byCategory)) {
+      doc.fontSize(9).text(`  ${category}: £${(cost as number).toLocaleString()}`);
+    }
+  }
+
+  doc.moveDown(1.5);
+
+  // Insurance Risk Section
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Insurance Risk Assessment');
+  doc.moveDown(0.5);
+
+  const insuranceRisk = financialImpact.insuranceRisk;
+  const riskColor = insuranceRisk?.riskLevel === 'HIGH' ? COLORS.RED : insuranceRisk?.riskLevel === 'MEDIUM' ? COLORS.AMBER : COLORS.GREEN;
+
+  doc.roundedRect(50, doc.y, 150, 50, 5).fill(riskColor);
+  doc.fontSize(12).fillColor(COLORS.WHITE).text('Risk Level', 60, doc.y + 10);
+  doc.fontSize(20).text(insuranceRisk?.riskLevel || 'N/A', 60, doc.y + 28);
+
+  doc.fontSize(10).fillColor(COLORS.BLACK);
+  doc.text(`Estimated Premium Impact: £${(insuranceRisk?.premiumImpact || 0).toLocaleString()}`, 220, doc.y + 20);
+
+  doc.moveDown(3);
+  doc.fontSize(8).fillColor(COLORS.GRAY).text(
+    `Assessment generated: ${new Date(financialImpact.assessedAt).toLocaleDateString('en-GB')}`,
+    { align: 'right' }
+  );
+
+  doc.addPage();
+  return currentPage + 1;
+}
+
+/**
+ * Render ELV Headroom Section
+ * Shows emission limit values and headroom for MCPD/Module 3 compliance
+ */
+async function renderELVHeadroomSection(
+  doc: PDFKit.PDFDocument,
+  packData: any,
+  sections: any[],
+  currentPage: number
+): Promise<number> {
+  const elvSummary = packData.elvSummary;
+
+  if (!elvSummary || elvSummary.parameters.length === 0) {
+    return currentPage;
+  }
+
+  sections.push({ title: 'ELV Headroom Analysis', page: currentPage });
+  doc.fontSize(18).fillColor(COLORS.BLACK).text('Emission Limit Value (ELV) Headroom', 50, 50);
+  doc.moveDown();
+
+  doc.fontSize(9).fillColor(COLORS.GRAY).text(
+    'This section shows the current headroom between measured emissions and permitted limits. Parameters are sourced from MCPD registrations and environmental permits.',
+    { width: doc.page.width - 100 }
+  );
+  doc.moveDown(1.5);
+
+  // Summary boxes
+  const safeCount = elvSummary.parametersWithinLimits;
+  const exceededCount = elvSummary.parametersExceeded;
+  const criticalCount = elvSummary.parameters.filter((p: any) => p.status === 'CRITICAL').length;
+  const warningCount = elvSummary.parameters.filter((p: any) => p.status === 'WARNING').length;
+
+  // Summary row
+  const boxWidth = 100;
+  const boxHeight = 50;
+  let boxX = 50;
+
+  // Safe parameters
+  doc.roundedRect(boxX, doc.y, boxWidth, boxHeight, 5).fill(COLORS.GREEN);
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Safe', boxX + 10, doc.y + 10);
+  doc.fontSize(24).text(safeCount.toString(), boxX + 10, doc.y + 25);
+  boxX += boxWidth + 15;
+
+  // Warning parameters
+  doc.roundedRect(boxX, doc.y - 50, boxWidth, boxHeight, 5).fill(COLORS.AMBER);
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Warning', boxX + 10, doc.y - 40);
+  doc.fontSize(24).text(warningCount.toString(), boxX + 10, doc.y - 25);
+  boxX += boxWidth + 15;
+
+  // Critical parameters
+  doc.roundedRect(boxX, doc.y - 50, boxWidth, boxHeight, 5).fill('#DC2626');
+  doc.fontSize(10).fillColor(COLORS.WHITE).text('Critical', boxX + 10, doc.y - 40);
+  doc.fontSize(24).text(criticalCount.toString(), boxX + 10, doc.y - 25);
+  boxX += boxWidth + 15;
+
+  // Exceeded parameters
+  if (exceededCount > 0) {
+    doc.roundedRect(boxX, doc.y - 50, boxWidth, boxHeight, 5).fill('#7F1D1D');
+    doc.fontSize(10).fillColor(COLORS.WHITE).text('Exceeded', boxX + 10, doc.y - 40);
+    doc.fontSize(24).text(exceededCount.toString(), boxX + 10, doc.y - 25);
+  }
+
+  doc.moveDown(3);
+
+  // Parameter details table
+  doc.fontSize(14).fillColor(COLORS.BLACK).text('Parameter Details');
+  doc.moveDown(0.5);
+
+  // Table header
+  const tableTop = doc.y;
+  const colWidths = [120, 80, 80, 80, 80];
+  doc.fontSize(8).fillColor(COLORS.WHITE);
+  doc.rect(50, tableTop, colWidths.reduce((a, b) => a + b, 0), 18).fill(COLORS.BLACK);
+  doc.text('Parameter', 55, tableTop + 5);
+  doc.text('Actual', 55 + colWidths[0], tableTop + 5);
+  doc.text('Limit', 55 + colWidths[0] + colWidths[1], tableTop + 5);
+  doc.text('Headroom', 55 + colWidths[0] + colWidths[1] + colWidths[2], tableTop + 5);
+  doc.text('Status', 55 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], tableTop + 5);
+
+  let rowY = tableTop + 18;
+  doc.fillColor(COLORS.BLACK);
+
+  for (const param of elvSummary.parameters) {
+    const statusColor = param.status === 'EXCEEDED' ? '#7F1D1D' :
+                       param.status === 'CRITICAL' ? COLORS.RED :
+                       param.status === 'WARNING' ? COLORS.AMBER : COLORS.GREEN;
+
+    // Alternate row background
+    if ((elvSummary.parameters.indexOf(param) % 2) === 0) {
+      doc.rect(50, rowY, colWidths.reduce((a: number, b: number) => a + b, 0), 16).fill('#F9FAFB');
+    }
+
+    doc.fontSize(8).fillColor(COLORS.BLACK);
+    doc.text(`${param.parameterName}${param.generatorName ? ` (${param.generatorName})` : ''}`.substring(0, 20), 55, rowY + 3);
+    doc.text(`${param.actualValue.toFixed(1)} ${param.unit}`, 55 + colWidths[0], rowY + 3);
+    doc.text(`${param.permitLimit.toFixed(1)} ${param.unit}`, 55 + colWidths[0] + colWidths[1], rowY + 3);
+    doc.text(`${param.headroomPercent.toFixed(1)}%`, 55 + colWidths[0] + colWidths[1] + colWidths[2], rowY + 3);
+
+    // Status badge
+    doc.roundedRect(55 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] - 5, rowY + 1, 60, 12, 3).fill(statusColor);
+    doc.fontSize(7).fillColor(COLORS.WHITE).text(param.status, 55 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], rowY + 3);
+
+    rowY += 16;
+
+    // Check for page break
+    if (rowY > doc.page.height - 100) {
+      doc.addPage();
+      currentPage++;
+      rowY = 50;
+    }
+  }
+
+  doc.y = rowY + 10;
+
+  // Worst parameter highlight
+  if (elvSummary.worstParameter && elvSummary.worstParameter.status !== 'SAFE') {
+    doc.moveDown();
+    doc.fontSize(12).fillColor(COLORS.RED).text('⚠ Parameter Requiring Attention');
+    doc.fontSize(10).fillColor(COLORS.BLACK).text(
+      `${elvSummary.worstParameter.parameterName}: ${elvSummary.worstParameter.headroomPercent.toFixed(1)}% headroom remaining (Status: ${elvSummary.worstParameter.status})`
+    );
+  }
+
+  // Recent exceedances
+  if (elvSummary.recentExceedances && elvSummary.recentExceedances.length > 0) {
+    doc.moveDown(1.5);
+    doc.fontSize(12).fillColor(COLORS.BLACK).text('Recent Exceedances (Last 90 Days)');
+    doc.moveDown(0.5);
+
+    for (const exc of elvSummary.recentExceedances.slice(0, 5)) {
+      doc.fontSize(9).fillColor(COLORS.RED).text(
+        `• ${exc.parameterName}: ${exc.actualValue} ${exc.unit} (limit: ${exc.permitLimit} ${exc.unit}) - ${new Date(exc.occurredAt).toLocaleDateString('en-GB')}`
+      );
+    }
+  }
+
+  doc.moveDown();
+  doc.fontSize(8).fillColor(COLORS.GRAY).text(
+    `Data last updated: ${new Date(elvSummary.lastUpdated).toLocaleDateString('en-GB')}`,
+    { align: 'right' }
+  );
+
+  doc.addPage();
+  return currentPage + 1;
 }
 
 /**

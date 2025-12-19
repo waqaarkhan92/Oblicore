@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -33,6 +33,7 @@ import {
   Activity,
   ArrowLeft,
   Layers,
+  History,
 } from 'lucide-react';
 import { useModuleActivation } from '@/lib/hooks/use-module-activation';
 import { useAuthStore } from '@/lib/store/auth-store';
@@ -140,6 +141,35 @@ export function Sidebar() {
     enabled: !!currentSiteId,
   });
 
+  // Recent Sites - Track and store in localStorage
+  const [recentSites, setRecentSites] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Load recent sites from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('ecocomply-recent-sites');
+    if (stored) {
+      try {
+        setRecentSites(JSON.parse(stored));
+      } catch (e) {
+        // Invalid JSON, clear it
+        localStorage.removeItem('ecocomply-recent-sites');
+      }
+    }
+  }, []);
+
+  // Update recent sites when visiting a site page
+  useEffect(() => {
+    if (currentSiteId && currentSite?.name) {
+      setRecentSites((prev) => {
+        // Remove if already exists and add to front
+        const filtered = prev.filter((s) => s.id !== currentSiteId);
+        const updated = [{ id: currentSiteId, name: currentSite.name }, ...filtered].slice(0, 5);
+        localStorage.setItem('ecocomply-recent-sites', JSON.stringify(updated));
+        return updated;
+      });
+    }
+  }, [currentSiteId, currentSite?.name]);
+
   // Determine if user is a consultant
   const isConsultant = user?.role === 'CONSULTANT';
 
@@ -224,6 +254,25 @@ export function Sidebar() {
                     />
                   ))}
                 </div>
+
+                {/* Recent Sites - Quick access to recently visited sites */}
+                {recentSites.length > 0 && (
+                  <div className="mt-6">
+                    <NavSectionLabel label="Recent Sites" isCollapsed={isCollapsed} />
+                    <div className="space-y-1">
+                      {recentSites.slice(0, 3).map((site) => (
+                        <NavItem
+                          key={site.id}
+                          name={site.name}
+                          href={`/dashboard/sites/${site.id}/dashboard`}
+                          icon={History}
+                          isActive={false}
+                          isCollapsed={isCollapsed}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

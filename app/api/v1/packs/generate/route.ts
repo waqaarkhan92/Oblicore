@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       recipient_type,
       recipient_name,
       purpose,
+      watermark,
     } = body;
 
     // Validate required fields
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
             date_range_start: date_range_start || null,
             date_range_end: date_range_end || null,
             filters: filters || {},
+            watermark: watermark || undefined,
           }),
         })
         .select('id')
@@ -212,6 +214,7 @@ export async function POST(request: NextRequest) {
             date_range_start: date_range_start || null,
             date_range_end: date_range_end || null,
             filters: filters || {},
+            watermark: watermark || undefined,
           },
           {
             jobId: jobRecord.id,

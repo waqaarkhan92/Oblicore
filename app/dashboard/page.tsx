@@ -23,6 +23,7 @@ import { getComplianceStatus, complianceStatusConfig } from '@/lib/utils/status'
 import { SitesRequiringAttention } from '@/components/dashboard/sites-requiring-attention';
 import { ActionableOverdueItems } from '@/components/dashboard/actionable-overdue-items';
 import { QuickUploadZone } from '@/components/dashboard/quick-upload-zone';
+import { WhatToDoNext } from '@/components/dashboard/what-to-do-next';
 import { ActivityFeed } from '@/components/enhanced-features';
 import { SiteHealthOverview, ComplianceSummaryCard, type SiteHealthData } from '@/components/ingestion';
 
@@ -311,6 +312,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* What to Do Next - Context-aware guidance */}
+      <WhatToDoNext limit={3} />
 
       {/* Actionable Overdue Items - Only show if there are overdue items */}
       {(totals.overdue || 0) > 0 && (

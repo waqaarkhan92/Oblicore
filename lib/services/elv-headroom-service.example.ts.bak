@@ -1,0 +1,356 @@
+/**
+ * ELV Headroom Service - Usage Examples
+ *
+ * This file demonstrates how to use the ELV Headroom Service in various scenarios.
+ * These examples can be used in:
+ * - Pack generation jobs (for regulatory packs)
+ * - Module 3 dashboard components
+ * - Alert/notification systems
+ * - API routes
+ */
+
+import { elvHeadroomService } from './elv-headroom-service';
+
+// ============================================================================
+// EXAMPLE 1: Get ELV Summary for Dashboard
+// ============================================================================
+
+/**
+ * Fetch comprehensive ELV summary for a site to display on dashboard
+ */
+async function getDashboardELVData(siteId: string) {
+  try {
+    const summary = await elvHeadroomService.getSiteELVSummary(siteId);
+
+    console.log(`Site ELV Summary for ${siteId}:`);
+    console.log(`- Total Parameters: ${summary.totalParameters}`);
+    console.log(`- Within Limits: ${summary.parametersWithinLimits}`);
+    console.log(`- Exceeded: ${summary.parametersExceeded}`);
+
+    if (summary.worstParameter) {
+      console.log(`\nWorst Parameter: ${summary.worstParameter.parameterName}`);
+      console.log(`- Current: ${summary.worstParameter.actualValue} ${summary.worstParameter.unit}`);
+      console.log(`- Limit: ${summary.worstParameter.permitLimit} ${summary.worstParameter.unit}`);
+      console.log(`- Headroom: ${summary.worstParameter.headroom} (${summary.worstParameter.headroomPercent.toFixed(1)}%)`);
+      console.log(`- Status: ${summary.worstParameter.status}`);
+    }
+
+    if (summary.recentExceedances.length > 0) {
+      console.log(`\nRecent Exceedances: ${summary.recentExceedances.length}`);
+      summary.recentExceedances.forEach(exc => {
+        console.log(`- ${exc.parameterName}: ${exc.actualValue} exceeded ${exc.permitLimit} on ${exc.occurredAt}`);
+      });
+    }
+
+    return summary;
+  } catch (error) {
+    console.error('Failed to get ELV summary:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// EXAMPLE 2: Check for Critical Parameters (Alert System)
+// ============================================================================
+
+/**
+ * Check if any parameters are in CRITICAL or EXCEEDED status
+ * Use this in automated alert/notification systems
+ */
+async function checkForCriticalELVs(siteId: string) {
+  const summary = await elvHeadroomService.getSiteELVSummary(siteId);
+
+  const criticalParameters = summary.parameters.filter(
+    p => p.status === 'CRITICAL' || p.status === 'EXCEEDED'
+  );
+
+  if (criticalParameters.length > 0) {
+    console.log(`⚠️ WARNING: ${criticalParameters.length} parameters require attention:`);
+
+    for (const param of criticalParameters) {
+      if (param.status === 'EXCEEDED') {
+        console.log(`🔴 BREACH: ${param.parameterName} has exceeded limit!`);
+        console.log(`   Actual: ${param.actualValue} ${param.unit} | Limit: ${param.permitLimit} ${param.unit}`);
+      } else {
+        console.log(`⚠️  CRITICAL: ${param.parameterName} is within 10% of limit`);
+        console.log(`   Headroom: ${param.headroom.toFixed(1)} ${param.unit} (${param.headroomPercent.toFixed(1)}%)`);
+      }
+    }
+
+    // Return true if action needed
+    return {
+      needsAction: true,
+      criticalCount: criticalParameters.length,
+      parameters: criticalParameters,
+    };
+  }
+
+  console.log('✅ All parameters within acceptable limits');
+  return {
+    needsAction: false,
+    criticalCount: 0,
+    parameters: [],
+  };
+}
+
+// ============================================================================
+// EXAMPLE 3: Generate ELV Headroom Chart Data
+// ============================================================================
+
+/**
+ * Generate data structure for ELV headroom charts
+ * Use this in dashboard components or pack generation
+ */
+async function getELVChartData(siteId: string) {
+  const [parameters, readings] = await Promise.all([
+    elvHeadroomService.getELVParameters(siteId),
+    elvHeadroomService.getLatestReadings(siteId),
+  ]);
+
+  // Match readings to parameters
+  const chartData = parameters.map(param => {
+    const reading = readings.find(r => r.parameterId === param.id);
+
+    if (!reading) {
+      return {
+        parameter: param.parameterName,
+        actual: 0,
+        limit: param.permitLimit,
+        warning: param.warningThreshold,
+        critical: param.criticalThreshold,
+        hasData: false,
+      };
+    }
+
+    const headroom = elvHeadroomService.calculateHeadroom(param, reading);
+
+    return {
+      parameter: param.parameterName,
+      actual: reading.value,
+      limit: param.permitLimit,
+      warning: param.warningThreshold,
+      critical: param.criticalThreshold,
+      headroom: headroom.headroom,
+      headroomPercent: headroom.headroomPercent,
+      status: headroom.status,
+      statusColor: headroom.statusColor,
+      lastTested: reading.testDate,
+      hasData: true,
+    };
+  });
+
+  return chartData;
+}
+
+// ============================================================================
+// EXAMPLE 4: Pack Generation - ELV Compliance Section
+// ============================================================================
+
+/**
+ * Generate ELV compliance section for regulatory pack
+ * This would be called from pack-generation-job.ts
+ */
+async function generateELVPackSection(siteId: string) {
+  const summary = await elvHeadroomService.getSiteELVSummary(siteId);
+
+  const packSection = {
+    title: 'Emission Limit Value (ELV) Compliance',
+    summary: {
+      totalParameters: summary.totalParameters,
+      compliant: summary.parametersWithinLimits,
+      exceeded: summary.parametersExceeded,
+      complianceRate: summary.totalParameters > 0
+        ? ((summary.parametersWithinLimits / summary.totalParameters) * 100).toFixed(1)
+        : 'N/A',
+    },
+    parameters: summary.parameters.map(p => ({
+      name: p.parameterName,
+      value: `${p.actualValue} ${p.unit}`,
+      limit: `${p.permitLimit} ${p.unit}`,
+      headroom: `${p.headroom.toFixed(1)} ${p.unit}`,
+      status: p.status,
+      lastTested: p.lastTestedAt,
+      generator: p.generatorName || 'N/A',
+    })),
+    worstCase: summary.worstParameter ? {
+      parameter: summary.worstParameter.parameterName,
+      headroom: `${summary.worstParameter.headroomPercent.toFixed(1)}%`,
+      status: summary.worstParameter.status,
+    } : null,
+    recentBreaches: summary.recentExceedances.map(e => ({
+      parameter: e.parameterName,
+      date: e.occurredAt,
+      value: `${e.actualValue} ${e.unit}`,
+      limit: `${e.permitLimit} ${e.unit}`,
+      exceedance: `${e.exceedanceAmount.toFixed(1)} (${e.exceedancePercentage.toFixed(1)}%)`,
+      generator: e.generatorName || 'N/A',
+    })),
+    generatedAt: summary.lastUpdated,
+  };
+
+  return packSection;
+}
+
+// ============================================================================
+// EXAMPLE 5: Historical Trend Analysis
+// ============================================================================
+
+/**
+ * Analyze exceedance trends over different time periods
+ */
+async function analyzeELVTrends(siteId: string) {
+  // Get exceedances for different periods
+  const [last30Days, last90Days, last365Days] = await Promise.all([
+    elvHeadroomService.getExceedanceHistory(siteId, undefined, 30),
+    elvHeadroomService.getExceedanceHistory(siteId, undefined, 90),
+    elvHeadroomService.getExceedanceHistory(siteId, undefined, 365),
+  ]);
+
+  const trendAnalysis = {
+    last30Days: {
+      count: last30Days.length,
+      parameters: [...new Set(last30Days.map(e => e.parameterName))],
+    },
+    last90Days: {
+      count: last90Days.length,
+      parameters: [...new Set(last90Days.map(e => e.parameterName))],
+    },
+    lastYear: {
+      count: last365Days.length,
+      parameters: [...new Set(last365Days.map(e => e.parameterName))],
+    },
+    trend: last30Days.length > last90Days.length / 3 ? 'WORSENING' : 'STABLE',
+    mostProblematic: getMostFrequentParameter(last90Days),
+  };
+
+  console.log('ELV Trend Analysis:');
+  console.log(`- Last 30 days: ${trendAnalysis.last30Days.count} exceedances`);
+  console.log(`- Last 90 days: ${trendAnalysis.last90Days.count} exceedances`);
+  console.log(`- Last year: ${trendAnalysis.lastYear.count} exceedances`);
+  console.log(`- Trend: ${trendAnalysis.trend}`);
+
+  if (trendAnalysis.mostProblematic) {
+    console.log(`- Most problematic: ${trendAnalysis.mostProblematic.parameter} (${trendAnalysis.mostProblematic.count} times)`);
+  }
+
+  return trendAnalysis;
+}
+
+function getMostFrequentParameter(exceedances: any[]) {
+  if (exceedances.length === 0) return null;
+
+  const counts = exceedances.reduce((acc, exc) => {
+    acc[exc.parameterName] = (acc[exc.parameterName] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return {
+    parameter: sorted[0][0],
+    count: sorted[0][1],
+  };
+}
+
+// ============================================================================
+// EXAMPLE 6: API Route Handler
+// ============================================================================
+
+/**
+ * Example API route for fetching ELV data
+ * app/api/sites/[siteId]/elv-headroom/route.ts
+ */
+async function apiRouteExample(siteId: string) {
+  try {
+    const summary = await elvHeadroomService.getSiteELVSummary(siteId);
+
+    return {
+      success: true,
+      data: summary,
+    };
+  } catch (error) {
+    console.error('API Error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+// ============================================================================
+// EXAMPLE 7: Individual Parameter Monitoring
+// ============================================================================
+
+/**
+ * Monitor a specific ELV parameter
+ */
+async function monitorSpecificParameter(
+  siteId: string,
+  parameterName: string
+) {
+  const [parameters, readings] = await Promise.all([
+    elvHeadroomService.getELVParameters(siteId),
+    elvHeadroomService.getLatestReadings(siteId),
+  ]);
+
+  const parameter = parameters.find(p => p.parameterName === parameterName);
+  const reading = readings.find(r => r.parameterName === parameterName);
+
+  if (!parameter) {
+    throw new Error(`Parameter ${parameterName} not found for site ${siteId}`);
+  }
+
+  if (!reading) {
+    return {
+      parameter: parameterName,
+      status: 'NO_DATA',
+      message: `No recent readings for ${parameterName}`,
+    };
+  }
+
+  const headroom = elvHeadroomService.calculateHeadroom(parameter, reading);
+
+  // Get historical exceedances for this parameter
+  const exceedances = await elvHeadroomService.getExceedanceHistory(
+    siteId,
+    parameter.id,
+    90
+  );
+
+  return {
+    parameter: parameterName,
+    current: {
+      value: reading.value,
+      unit: reading.unit,
+      testedOn: reading.testDate,
+    },
+    limit: {
+      value: parameter.permitLimit,
+      unit: parameter.unit,
+      basis: parameter.regulatoryBasis,
+    },
+    headroom: {
+      absolute: headroom.headroom,
+      percentage: headroom.headroomPercent,
+      status: headroom.status,
+      statusColor: headroom.statusColor,
+    },
+    history: {
+      exceedances: exceedances.length,
+      lastExceedance: exceedances.length > 0 ? exceedances[0].occurredAt : null,
+    },
+  };
+}
+
+// ============================================================================
+// EXPORTS FOR TESTING
+// ============================================================================
+
+export {
+  getDashboardELVData,
+  checkForCriticalELVs,
+  getELVChartData,
+  generateELVPackSection,
+  analyzeELVTrends,
+  apiRouteExample,
+  monitorSpecificParameter,
+};

@@ -110,6 +110,12 @@ export async function scheduleRecurringJobs(): Promise<void> {
   // Review Queue Escalation Job (every 4 hours per Implementation Blueprint Section 7.5)
   await scheduleJob('REVIEW_QUEUE_ESCALATION', QUEUE_NAMES.REVIEW_QUEUE_ESCALATION, '0 */4 * * *', {});
 
+  // Pattern Auto-Approval Job (daily at 3 AM UTC)
+  await scheduleJob('PATTERN_AUTO_APPROVAL', QUEUE_NAMES.PATTERN_AUTO_APPROVAL, '0 3 * * *', {
+    batch_size: 100,
+    dry_run: false,
+  });
+
   console.log('All recurring jobs scheduled');
 }
 

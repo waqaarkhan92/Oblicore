@@ -3,6 +3,31 @@
  * Reference: EXTRACTION_IMPROVEMENT_RECOMMENDATIONS.md
  */
 
+/**
+ * Extraction Explanation - provides transparency about how an obligation was extracted
+ * Used to show users the source and confidence of AI extractions
+ */
+export interface ExtractionExplanation {
+  source: 'RULE_LIBRARY' | 'LLM_EXTRACTION' | 'HYBRID';
+  ruleLibraryMatch?: {
+    patternId: string;
+    version: number;
+    matchScore: number;
+  };
+  llmExtraction?: {
+    model: string;
+    pass: number;
+    tokensUsed: number;
+  };
+  groundingValidation: {
+    textFound: boolean;
+    pageNumber?: number;
+    hallucinationRisk: 'LOW' | 'MEDIUM' | 'HIGH';
+  };
+  confidence: number;
+  extractedAt: string;
+}
+
 export interface Obligation {
   condition_reference: string | null;
   title: string;
@@ -23,6 +48,7 @@ export interface Obligation {
   metadata?: Record<string, any>;
   _source?: string;
   _extracted_at?: string;
+  extraction_explanation?: ExtractionExplanation;
 }
 
 export interface PassResult {

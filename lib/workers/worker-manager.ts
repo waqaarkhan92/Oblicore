@@ -39,6 +39,7 @@ import { processFlagPendingRuntimeValidationsJob } from '../jobs/flag-pending-ru
 import { processExecutePendingRecurrenceTriggersJob } from '../jobs/execute-pending-recurrence-triggers-job';
 import { processProcessTriggerConditionsJob } from '../jobs/process-trigger-conditions-job';
 import { processRefreshComplianceDashboardJob } from '../jobs/refresh-compliance-dashboard-job';
+import { processPatternAutoApprovalJob } from '../jobs/pattern-auto-approval-job';
 
 // Worker instances
 const workers: Map<string, Worker> = new Map();
@@ -624,6 +625,30 @@ export async function startAllWorkers(): Promise<void> {
 
   workers.set(QUEUE_NAMES.DASHBOARD_REFRESH, dashboardRefreshWorker);
 
+  // Pattern Auto-Approval Worker
+  const patternAutoApprovalWorker = createWorker(
+    QUEUE_NAMES.PATTERN_AUTO_APPROVAL,
+    async (job) => {
+      if (job.name === 'PATTERN_AUTO_APPROVAL') {
+        await processPatternAutoApprovalJob(job);
+      } else {
+        throw new Error(`Unknown job type: ${job.name}`);
+      }
+    },
+    {
+      concurrency: 1, // Single concurrent job to avoid conflicts
+    }
+  );
+
+  patternAutoApprovalWorker.on('completed', (job) => {
+    console.log(`Pattern auto-approval job ${job.id} completed`);
+  });
+
+  patternAutoApprovalWorker.on('failed', (job, error) => {
+    console.error(`Pattern auto-approval job ${job?.id} failed:`, error);
+  });
+
+  workers.set(QUEUE_NAMES.PATTERN_AUTO_APPROVAL, patternAutoApprovalWorker);
 
   console.log('All workers started successfully');
 }
