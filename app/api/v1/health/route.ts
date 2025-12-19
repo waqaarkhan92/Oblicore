@@ -1,7 +1,7 @@
 /**
  * Health Check Endpoint
  * GET /api/v1/health
- * 
+ *
  * Purpose: Health check endpoint for monitoring and load balancers
  * Authentication: Not required
  */
@@ -11,12 +11,40 @@ import { successResponse } from '@/lib/api/response';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+
+  // Show partial env vars for debugging (safe - only shows first chars)
+  const envDiagnostics = {
+    SUPABASE_URL: process.env.SUPABASE_URL
+      ? `${process.env.SUPABASE_URL.substring(0, 40)}...`
+      : 'NOT SET',
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'SET' : 'NOT SET',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET',
+  };
+
   try {
-    // Check database connection
-    const { error: dbError } = await supabaseAdmin
-      .from('system_settings')
-      .select('id')
-      .limit(1);
+    // Check database connection with timeout
+    let dbError: any = null;
+    let dbDuration = 0;
+
+    try {
+      const dbStart = Date.now();
+      const dbPromise = supabaseAdmin
+        .from('system_settings')
+        .select('id')
+        .limit(1);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database timeout (5s)')), 5000)
+      );
+
+      const result = await Promise.race([dbPromise, timeoutPromise]) as any;
+      dbError = result.error;
+      dbDuration = Date.now() - dbStart;
+    } catch (e: any) {
+      dbError = e;
+      dbDuration = Date.now() - startTime;
+    }
 
     const databaseStatus = dbError ? 'unhealthy' : 'healthy';
 
@@ -93,8 +121,10 @@ export async function GET(request: NextRequest) {
         status: overallStatus,
         timestamp: new Date().toISOString(),
         version: '1.0.0',
+        total_duration_ms: Date.now() - startTime,
+        env_diagnostics: envDiagnostics,
         services: {
-          database: databaseStatus,
+          database: { status: databaseStatus, duration_ms: dbDuration, error: dbError?.message || null },
           redis: redisStatus,
           storage: storageStatus,
           openai: openaiStatus,
@@ -103,12 +133,15 @@ export async function GET(request: NextRequest) {
       200,
       { request_id: request.headers.get('x-request-id') || undefined }
     );
-  } catch (error) {
+  } catch (error: any) {
     return successResponse(
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
+        total_duration_ms: Date.now() - startTime,
+        env_diagnostics: envDiagnostics,
+        error: error?.message || 'Unknown error',
         services: {
           database: 'unhealthy',
           redis: 'unhealthy',
